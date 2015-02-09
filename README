@@ -1,0 +1,11 @@
+psnapshot-enc is a script to create (incremental) snapshots (backups) of e.g.
+your NAS to an offsite location. The script is inspired by rsnapshot (and
+some articles I've read on the internet) with the exception that it pushes
+the backups from the client to the server using ssh + rsync, rather than
+pulling backups from the server side (like rsnapshot). However, like
+rsnapshot, psnapshot-enc uses hardlinks to create incremental backups which
+allows you to easily access files in old backups + (old) backups can be
+easily purged. Furthermore it uses client side encryption (using encfs) to
+allow backup to untrusted servers. The script is still under development
+(beta) but it's already working quite well (for me). Everyone is encouraged
+to test it and report back.
