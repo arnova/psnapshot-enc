@@ -1,10 +1,10 @@
 #!/bin/sh
 
-MY_VERSION="0.17-BETA"
+MY_VERSION="0.18-BETA"
 # ----------------------------------------------------------------------------------------------------------------------
-# Arno's Push-Snapshot Script using ENCFS+RSYNC+SSH
-# Last update: December 21, 2014
-# (C) Copyright 2014 by Arno van Amersfoort
+# Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
+# Last update: July 9, 2015
+# (C) Copyright 2014-2015 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
 #                         (note: you must remove all spaces and substitute the @ and the . at the proper locations!)
@@ -12,12 +12,12 @@ MY_VERSION="0.17-BETA"
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
 # version 2 as published by the Free Software Foundation.
-
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-
+#
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
@@ -342,12 +342,6 @@ show_help()
 
 sanity_check()
 {
-  if [ -z "$BACKUP_DIRS" ]; then
-    echo "ERROR: Missing BACKUP_DIRS setting. Check $CONF_FILE" >&2
-    echo ""
-    exit 1
-  fi
-
   IFS=' '
   for ITEM in $BACKUP_DIRS; do
     # Determine folder name to use on target
@@ -366,12 +360,6 @@ sanity_check()
 
   if [ -z "$USER_AND_SERVER" ]; then
     echo "ERROR: Missing USER_AND_SERVER setting. Check $CONF_FILE" >&2
-    echo ""
-    exit 1
-  fi
-
-  if [ -z "$TARGET_PATH" ]; then
-    echo "ERROR: Missing TARGET_PATH setting. Check $CONF_FILE" >&2
     echo ""
     exit 1
   fi
@@ -527,6 +515,18 @@ elif [ $UMOUNT -eq 1 ]; then
   echo "* SSHFS/ENCFS filesystems unmounted"
   echo ""
 else
+  if [ -z "$TARGET_PATH" ]; then
+    echo "ERROR: Missing TARGET_PATH setting. Check $CONF_FILE" >&2
+    echo ""
+    exit 1
+  fi
+
+  if [ -z "$BACKUP_DIRS" ]; then
+    echo "ERROR: Missing BACKUP_DIRS setting. Check $CONF_FILE" >&2
+    echo ""
+    exit 1
+  fi
+
   if [ $BACKGROUND -eq 1 ]; then
     backup &
   else
