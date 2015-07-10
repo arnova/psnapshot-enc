@@ -1,6 +1,6 @@
 #!/bin/sh
 
-MY_VERSION="0.19-BETA"
+MY_VERSION="0.20-BETA"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
 # Last update: July 10, 2015
@@ -187,7 +187,7 @@ backup()
 
       # Create remote directory 
       ENCODED_SUB_PATH="$(encode_path "$SOURCE_DIR" "$SUB_DIR")"
-      if ! mkdir -p "$SSHFS_MOUNT_PATH/$ENCODED_SUB_PATH"; then
+      if ! mkdir -p -- "$SSHFS_MOUNT_PATH/$ENCODED_SUB_PATH"; then
         echo "ERROR: Unable to create remote target directory. Aborting backup for $SOURCE_DIR!" >&2
         continue;
       fi
@@ -218,7 +218,7 @@ backup()
       done
 
       # Construct rsync line depending on the info we just retrieved
-      RSYNC_LINE="rsync -rtlx --safe-links  --fuzzy --delete --delete-after --delete-excluded --log-format='%o: %n%L' -e 'ssh -q -c arcfour'"
+      RSYNC_LINE="-rtlx --safe-links  --fuzzy --delete --delete-after --delete-excluded --log-format='%o: %n%L' -e 'ssh -q -c arcfour'"
 
       if [ -n "$BW_LIMIT" ]; then
         RSYNC_LINE="$RSYNC_LINE --bwlimit=$BW_LIMIT"
@@ -246,7 +246,7 @@ backup()
       else
         SNAPSHOT_DIR=".sync"
       fi
-      RSYNC_LINE="$RSYNC_LINE "${USER_AND_SERVER}:\"${TARGET_PATH}/$(encode_path "$SOURCE_DIR" "$SUB_DIR/$SNAPSHOT_DIR")/\"""
+      RSYNC_LINE="$RSYNC_LINE -- "${USER_AND_SERVER}:\"${TARGET_PATH}/$(encode_path "$SOURCE_DIR" "$SUB_DIR/$SNAPSHOT_DIR")/\"""
 
       if [ -n "$EXCLUDE_DIRS" ]; then
         echo "* Excluding folders: $EXCLUDE_DIRS"
@@ -258,28 +258,28 @@ backup()
       # NOTE: Ignore root (eg. permission) changes with ' ./$'
       # NOTE: We use rsync + ssh directly (without sshfs) as this is much faster
       # TODO: Can we optimise this by aborting on the first change?:
-      change_count="$(eval $RSYNC_LINE -i --dry-run |grep -v ' ./$' |wc -l)"
+      change_count="$(eval rsync -i --dry-run $RSYNC_LINE |grep -v ' ./$' |wc -l)"
 
       if [ $change_count -gt 0 ]; then
         echo "* $change_count changes detected -> syncing remote..."
 
-        RSYNC_LINE="$RSYNC_LINE -v"
+        RSYNC_LINE="-v $RSYNC_LINE"
 
         if [ "$VERBOSE" = "1" ]; then
-          RSYNC_LINE="$RSYNC_LINE --progress"
+          RSYNC_LINE="--progress $RSYNC_LINE"
         fi
 
         if [ $DRY_RUN -eq 1 ]; then
-          RSYNC_LINE="$RSYNC_LINE --dry-run"
+          RSYNC_LINE="--dry-run $RSYNC_LINE"
         fi
 
-        echo "-> $RSYNC_LINE"
+        echo "-> rsync $RSYNC_LINE"
 
         if [ $DECODE -eq 0 ]; then
-          eval $RSYNC_LINE --log-file="$LOG_FILE" 2>&1
+          eval rsync --log-file="$LOG_FILE" $RSYNC_LINE 2>&1
           retval=$?
         else
-          eval $RSYNC_LINE --log-file="$LOG_FILE" 2>&1 |rsync_parse "$SOURCE_DIR"
+          eval rsync --log-file="$LOG_FILE" $RSYNC_LINE 2>&1 |rsync_parse "$SOURCE_DIR"
           retval=$?
         fi
 
@@ -288,11 +288,11 @@ backup()
             # Update timestamp on base folder:
             if [ $FOUND_CURRENT -ne 1 ]; then
               # Rename .sync to current date-snapshot
-              mv -v "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/.sync")" "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/snapshot_$CUR_DATE")"
+              mv -v -- "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/.sync")" "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/snapshot_$CUR_DATE")"
             fi
 
-            chmod -v 750 "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/snapshot_${CUR_DATE}")"
-            touch "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/snapshot_${CUR_DATE}")"
+            chmod -v 750 -- "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/snapshot_${CUR_DATE}")"
+            touch -- "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/snapshot_${CUR_DATE}")"
           fi
         else
           echo "ERROR: rsync failed" >&2
@@ -534,12 +534,13 @@ else
   fi
 fi
 
+# TODO: Parse log file and/or show changes with decoded names
+# TODO: Cleanup old backups
+
 # TODO: move target directory creation to --init ?
 # FIXME: detect empty mount point / wrong key
 # TODO: On init detect non-empty remote folder
 # TODO: ls remote after init?
 
-# TODO: Parse log file and/or show changes with decoded names
 # TODO: Locking
-# TODO: Cleanup old backups?
 # TODO: Error mailing
