@@ -117,6 +117,7 @@ rsync_parse()
                ;;
       *)       echo "$LINE"
                ;;
+    esac
   done
 }
 
