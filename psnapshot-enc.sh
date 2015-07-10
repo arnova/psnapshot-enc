@@ -1,9 +1,9 @@
 #!/bin/sh
 
-MY_VERSION="0.18-BETA"
+MY_VERSION="0.19-BETA"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
-# Last update: July 9, 2015
+# Last update: July 10, 2015
 # (C) Copyright 2014-2015 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
@@ -90,7 +90,7 @@ umount_encfs()
 encode_path()
 {
   if [ "$ENCFS_ENABLE" != "0" ]; then
-    ENCFS6_CONFIG="$ENCFS_CONF_FILE" encfsctl encode --extpass="echo "$ENCFS_PASSWORD"" "$1" "$2"
+    ENCFS6_CONFIG="$ENCFS_CONF_FILE" encfsctl encode --extpass="echo "$ENCFS_PASSWORD"" -- "$1" "$2"
   else
     echo "$1"
   fi
@@ -100,7 +100,7 @@ encode_path()
 decode_path()
 {
   if [ "$ENCFS_ENABLE" != "0" ]; then
-    ENCFS6_CONFIG="$ENCFS_CONF_FILE" encfsctl decode --extpass="echo "$ENCFS_PASSWORD"" "$1" "$2"
+    ENCFS6_CONFIG="$ENCFS_CONF_FILE" encfsctl decode --extpass="echo "$ENCFS_PASSWORD"" -- "$1" "$2"
   else
     echo "$1"
   fi
@@ -109,14 +109,14 @@ decode_path()
 
 rsync_parse()
 {
-  # NOTE: This is currently too slow so due to encfsctl decode performing really bad
+  # NOTE: This is currently too slow due to encfsctl decode performing really bad
   IFS=$EOL
   while read LINE; do
-    if echo "$LINE" |grep -q -e "^send: "; then
-      echo "send: $(decode_path "$1" $(echo "$LINE" |cut -f2 -d' '))"
-    else
-      echo "$LINE"
-    fi
+    case "$LINE" in
+      send:* ) echo "send: $(decode_path "$1" $(echo "$LINE" |cut -f2 -d' '))"
+               ;;
+      *)       echo "$LINE"
+               ;;
   done
 }
 
@@ -276,10 +276,10 @@ backup()
         echo "-> $RSYNC_LINE"
 
         if [ $DECODE -eq 0 ]; then
-          eval $RSYNC_LINE 2>&1 |tee "$LOG_FILE"
+          eval $RSYNC_LINE --log-file="$LOG_FILE" 2>&1
           retval=$?
         else
-          eval $RSYNC_LINE 2>&1 |rsync_parse "$SOURCE_DIR" |tee "$LOG_FILE"
+          eval $RSYNC_LINE --log-file="$LOG_FILE" 2>&1 |rsync_parse "$SOURCE_DIR"
           retval=$?
         fi
 
