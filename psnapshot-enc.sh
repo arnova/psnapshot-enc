@@ -113,14 +113,14 @@ rsync_parse()
   IFS=$EOL
   while read LINE; do
     case "$LINE" in
-      send: *)              echo "send: $(decode_path "$1" $(echo "$LINE" |cut -f1 -d' ' --complement))"
-                            ;;
-      del.: *)              echo "del.: $(decode_path "$1" $(echo "$LINE" |cut -f1 -d' ' --complement))"
-                            ;;
-      created directory *)  echo "created directory: $(decode_path "$1" $(echo "$LINE" |cut -f1 -d' ' --complement))"
-                            ;;
-      *)                    echo "$LINE"
-                            ;;
+      "send: "*)              echo "send: $(decode_path "$1" $(echo "$LINE" |cut -f1 -d' ' --complement))"
+                              ;;
+      "del.: "*)              echo "del.: $(decode_path "$1" $(echo "$LINE" |cut -f1 -d' ' --complement))"
+                              ;;
+      "created directory "*)  echo "created directory: $(decode_path "$1" $(echo "$LINE" |cut -f1 -d' ' --complement))"
+                              ;;
+      *)                      echo "$LINE"
+                              ;;
     esac
   done
 }
@@ -187,21 +187,22 @@ backup()
         continue;
       fi
 
-      # First check whether there are any changes
-      echo "* Checking for changes in $SOURCE_DIR..."
-
       # Create remote directory 
       ENCODED_SUB_PATH="$(encode_path "$SOURCE_DIR" "$SUB_DIR")"
       if ! mkdir -p -- "$SSHFS_MOUNT_PATH/$ENCODED_SUB_PATH"; then
-        echo "ERROR: Unable to create remote target directory. Aborting backup for $SOURCE_DIR!" >&2
+        echo "ERROR: Unable to create remote target directory \"${SSHFS_MOUNT_PATH}/${ENCODED_SUB_PATH}\". Aborting backup for $SOURCE_DIR!" >&2
         continue;
       fi
+
+      # First check whether there are any changes
+      echo "* Checking for changes in $SOURCE_DIR..."
 
       # Look for already existing snapshot directories
       FOUND_SYNC=0
       FOUND_CURRENT=0
       LAST_SNAPSHOT_ENC=""
 
+      # TODO: Instead of using stat, check the actual folder-name (just remove the xargs stat?)
       IFS=$EOL
       for ITEM in `find "$SSHFS_MOUNT_PATH/$ENCODED_SUB_PATH/" -maxdepth 1 -mindepth 1 -type d -print0 |xargs -r0 stat -c "%Y${TAB}%n" |sort -r |head -n3`; do
         NAME="$(basename "$(echo "$ITEM" |cut -f2)")"
@@ -289,14 +290,19 @@ backup()
         fi
 
         if [ $retval -eq 0 ]; then
-          if [ $DRY_RUN -eq 0 ]; then
-            # Update timestamp on base folder:
-            if [ $FOUND_CURRENT -ne 1 ]; then
-              # Rename .sync to current date-snapshot
-              mv -v -- "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/.sync")" "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/snapshot_$CUR_DATE")"
-            fi
 
-            chmod -v 750 -- "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/snapshot_${CUR_DATE}")"
+          # Update timestamp on base folder:
+          if [ $FOUND_CURRENT -ne 1 ]; then
+            # Rename .sync to current date-snapshot
+            echo "* Renaming \"${SSHFS_MOUNT_PATH}/${SUB_DIR}/.sync\" to \"${SSHFS_MOUNT_PATH}/${SUB_DIR}/snapshot_${CUR_DATE}\""
+            if [ $DRY_RUN -eq 0 ]; then
+              mv -- "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/.sync")" "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/snapshot_$CUR_DATE")"
+            fi
+          fi
+
+          echo "* Setting permissions 750 for \"$SSHFS_MOUNT_PATH/$SUB_DIR/snapshot_${CUR_DATE}\""
+          if [ $DRY_RUN -eq 0 ]; then
+            chmod 750 -- "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/snapshot_${CUR_DATE}")"
             touch -- "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/snapshot_${CUR_DATE}")"
           fi
         else
