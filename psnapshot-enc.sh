@@ -199,7 +199,7 @@ backup()
       fi
 
       # First check whether there are any changes
-      echo "* Checking for changes in $SOURCE_DIR..."
+      echo "* Checking for changes in $SOURCE_DIR..." |tee -a "$LOG_FILE"
 
       # Look for already existing snapshot directories
       FOUND_SYNC=0
@@ -214,21 +214,21 @@ backup()
 
         case $DECODED_NAME in
           .sync              ) FOUND_SYNC=1
-                               echo "* .sync folder found"
+                               echo "* .sync folder found" |tee -a "$LOG_FILE"
                                ;;
           snapshot_$CUR_DATE ) FOUND_CURRENT=1
-                               echo "* $DECODED_NAME (current date) folder found"
+                               echo "* $DECODED_NAME (current date) folder found" |tee -a "$LOG_FILE"
                                ;;
           snapshot_*         ) if [ -z "$LAST_SNAPSHOT_ENC" ]; then
                                  LAST_SNAPSHOT_ENC="$NAME" # Use last snapshot as base
-                                 echo "* $DECODED_NAME (previous date) folder found"
+                                 echo "* $DECODED_NAME (previous date) folder found" |tee -a "$LOG_FILE"
                                fi
                                ;;
         esac
       done
 
       # Construct rsync line depending on the info we just retrieved
-      RSYNC_LINE="-rtlx --safe-links  --fuzzy --delete --delete-after --delete-excluded --log-format='%o: %n%L' -e 'ssh -q -c arcfour'"
+      RSYNC_LINE="-rtlx --safe-links --fuzzy --delete --delete-after --delete-excluded --log-format='%o: %n%L' -e 'ssh -q -c arcfour'"
 
       if [ -n "$BW_LIMIT" ]; then
         RSYNC_LINE="$RSYNC_LINE --bwlimit=$BW_LIMIT"
@@ -259,7 +259,7 @@ backup()
       RSYNC_LINE="$RSYNC_LINE -- "${USER_AND_SERVER}:\"${TARGET_PATH}/$(encode_path "$SOURCE_DIR" "$SUB_DIR/$SNAPSHOT_DIR")/\"""
 
       if [ -n "$EXCLUDE_DIRS" ]; then
-        echo "* Excluding folders: $EXCLUDE_DIRS"
+        echo "* Excluding folders: $EXCLUDE_DIRS" |tee -a "$LOG_FILE"
       fi
 #        echo "-> $RSYNC_LINE"
 
@@ -271,7 +271,7 @@ backup()
       change_count="$(eval rsync -i --dry-run $RSYNC_LINE |grep -v ' ./$' |wc -l)"
 
       if [ $change_count -gt 0 ]; then
-        echo "* $change_count changes detected -> syncing remote..."
+        echo "* $change_count changes detected -> syncing remote..." |tee -a "$LOG_FILE"
 
         RSYNC_LINE="-v --log-file="$LOG_FILE" $RSYNC_LINE"
 
@@ -283,7 +283,7 @@ backup()
           RSYNC_LINE="--dry-run $RSYNC_LINE"
         fi
 
-        echo "-> rsync $RSYNC_LINE"
+        echo "-> rsync $RSYNC_LINE" |tee -a "$LOG_FILE"
 
         if [ $DECODE -eq 0 ]; then
           eval rsync $RSYNC_LINE 2>&1
@@ -298,13 +298,13 @@ backup()
           # Update timestamp on base folder:
           if [ $FOUND_CURRENT -ne 1 ]; then
             # Rename .sync to current date-snapshot
-            echo "* Renaming \"${SSHFS_MOUNT_PATH}/${SUB_DIR}/.sync\" to \"${SSHFS_MOUNT_PATH}/${SUB_DIR}/snapshot_${CUR_DATE}\""
+            echo "* Renaming \"${SSHFS_MOUNT_PATH}/${SUB_DIR}/.sync\" to \"${SSHFS_MOUNT_PATH}/${SUB_DIR}/snapshot_${CUR_DATE}\"" |tee -a "$LOG_FILE"
             if [ $DRY_RUN -eq 0 ]; then
               mv -- "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/.sync")" "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/snapshot_$CUR_DATE")"
             fi
           fi
 
-          echo "* Setting permissions 750 for \"$SSHFS_MOUNT_PATH/$SUB_DIR/snapshot_${CUR_DATE}\""
+          echo "* Setting permissions 750 for \"$SSHFS_MOUNT_PATH/$SUB_DIR/snapshot_${CUR_DATE}\"" |tee -a "$LOG_FILE"
           if [ $DRY_RUN -eq 0 ]; then
             chmod 750 -- "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/snapshot_${CUR_DATE}")"
             touch -- "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/snapshot_${CUR_DATE}")"
@@ -316,7 +316,7 @@ backup()
           #grep -v -e 'building file list' -e 'files to consider' "$LOG_FILE"
         fi
       else
-        echo "* No changes detected..."
+        echo "* No changes detected..." |tee -a "$LOG_FILE"
       fi
 
       if [ "$ENCFS_ENABLE" != "0" ]; then
