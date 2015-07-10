@@ -158,6 +158,10 @@ check_command_error()
 backup()
 {
   while true; do
+    # Rotate logfile
+    rm -f "${LOG_FILE}.old"
+    mv "${LOG_FILE}" "${LOG_FILE}.old"
+
     CUR_DATE=`date "+%Y-%m-%d"`
 
     IFS=' '
