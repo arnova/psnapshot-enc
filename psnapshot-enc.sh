@@ -109,14 +109,18 @@ decode_path()
 
 rsync_parse()
 {
-  # NOTE: This is currently too slow due to encfsctl decode performing really bad
+  # NOTE: This is currently really slow due to encfsctl decode performing really bad
   IFS=$EOL
   while read LINE; do
     case "$LINE" in
-      send:* ) echo "send: $(decode_path "$1" $(echo "$LINE" |cut -f2 -d' '))"
-               ;;
-      *)       echo "$LINE"
-               ;;
+      send: *)              echo "send: $(decode_path "$1" $(echo "$LINE" |cut -f1 -d' ' --complement))"
+                            ;;
+      del.: *)              echo "del.: $(decode_path "$1" $(echo "$LINE" |cut -f1 -d' ' --complement))"
+                            ;;
+      created directory *)  echo "created directory: $(decode_path "$1" $(echo "$LINE" |cut -f1 -d' ' --complement))"
+                            ;;
+      *)                    echo "$LINE"
+                            ;;
     esac
   done
 }
@@ -264,7 +268,7 @@ backup()
       if [ $change_count -gt 0 ]; then
         echo "* $change_count changes detected -> syncing remote..."
 
-        RSYNC_LINE="-v $RSYNC_LINE"
+        RSYNC_LINE="-v --log-file="$LOG_FILE" $RSYNC_LINE"
 
         if [ "$VERBOSE" = "1" ]; then
           RSYNC_LINE="--progress $RSYNC_LINE"
@@ -277,10 +281,10 @@ backup()
         echo "-> rsync $RSYNC_LINE"
 
         if [ $DECODE -eq 0 ]; then
-          eval rsync --log-file="$LOG_FILE" $RSYNC_LINE 2>&1
+          eval rsync $RSYNC_LINE 2>&1
           retval=$?
         else
-          eval rsync --log-file="$LOG_FILE" $RSYNC_LINE 2>&1 |rsync_parse "$SOURCE_DIR"
+          eval rsync $RSYNC_LINE 2>&1 |rsync_parse "$SOURCE_DIR"
           retval=$?
         fi
 
@@ -471,7 +475,7 @@ process_commandline()
 
 # Mainline:
 ###########
-echo "psnapshot-enc v$MY_VERSION - (C) Copyright 2014 by Arno van Amersfoort"
+echo "psnapshot-enc v$MY_VERSION - (C) Copyright 2014-2015 by Arno van Amersfoort"
 echo ""
 
 process_commandline $*;
@@ -537,6 +541,7 @@ fi
 
 # TODO: Parse log file and/or show changes with decoded names
 # TODO: Cleanup old backups
+# CTRL-C handler?
 
 # TODO: move target directory creation to --init ?
 # FIXME: detect empty mount point / wrong key
