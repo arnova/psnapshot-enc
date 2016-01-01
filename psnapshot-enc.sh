@@ -35,7 +35,7 @@ mount_remote_sshfs()
 {
   mkdir -p "$SSHFS_MOUNT_PATH"
 
-  sshfs "${USER_AND_SERVER}:${TARGET_PATH}" "$SSHFS_MOUNT_PATH" -o Cipher="arcfour"
+  sshfs "${USER_AND_SERVER}:${TARGET_PATH}" "$SSHFS_MOUNT_PATH" -o Cipher="arcfour",uid="$(id -u)",gid="$(id -g)"
   return $?
 }
 
@@ -479,7 +479,7 @@ process_commandline()
 
 # Mainline:
 ###########
-echo "psnapshot-enc v$MY_VERSION - (C) Copyright 2014-2015 by Arno van Amersfoort"
+echo "psnapshot-enc v$MY_VERSION - (C) Copyright 2014-2016 by Arno van Amersfoort"
 echo ""
 
 process_commandline $*;
@@ -498,6 +498,7 @@ sanity_check;
 if [ -z "$ENCFS_PASSWORD" -a "$UMOUNT" = "0" ]; then
   printf "* No password in config file. Enter ENCFS password: "
   read -s ENCFS_PASSWORD
+  echo ""
 fi
 
 if [ $INIT -eq 1 ]; then
