@@ -1,10 +1,10 @@
-#!/bin/sh
+#!/bin/bash
 
-MY_VERSION="0.20-BETA"
+MY_VERSION="0.21-BETA"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
-# Last update: July 10, 2015
-# (C) Copyright 2014-2015 by Arno van Amersfoort
+# Last update: January 1, 2016
+# (C) Copyright 2014-2016 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
 #                         (note: you must remove all spaces and substitute the @ and the . at the proper locations!)
@@ -22,8 +22,6 @@ MY_VERSION="0.20-BETA"
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 # ---------------------------------------------------------------------------------------------------------------------- 
-
-DEFAULT_CONF_FILE="/etc/psnapshot-enc.conf"
 
 EOL='
 '
@@ -357,21 +355,23 @@ show_help()
 
 sanity_check()
 {
-  IFS=' '
-  for ITEM in $BACKUP_DIRS; do
-    # Determine folder name to use on target
-    if echo "$ITEM" |grep -q ':'; then
-      SOURCE_DIR="$(echo "$ITEM" |cut -f1 -d':')"
-    else
-      SOURCE_DIR="$ITEM"
-    fi
+  if [ "$MOUNT" = "0" -a "$UMOUNT" = "0" ]; then
+    IFS=' '
+    for ITEM in $BACKUP_DIRS; do
+      # Determine folder name to use on target
+      if echo "$ITEM" |grep -q ':'; then
+        SOURCE_DIR="$(echo "$ITEM" |cut -f1 -d':')"
+      else
+        SOURCE_DIR="$ITEM"
+      fi
 
-    if [ ! -e "$SOURCE_DIR" ]; then
-      echo "ERROR: Source directory $SOURCE_DIR does NOT exist!" >&2
-      echo ""
-      exit 1
-    fi
-  done
+      if [ ! -e "$SOURCE_DIR" ]; then
+        echo "ERROR: Source directory $SOURCE_DIR does NOT exist!" >&2
+        echo ""
+        exit 1
+      fi
+    done
+  fi
 
   if [ -z "$USER_AND_SERVER" ]; then
     echo "ERROR: Missing USER_AND_SERVER setting. Check $CONF_FILE" >&2
@@ -388,12 +388,6 @@ sanity_check()
   if [ "$ENCFS_ENABLE" != "0" ]; then
     if [ -z "$ENCFS_CONF_FILE" ]; then
       echo "ERROR: Missing ENCFS_CONF_FILE setting. Check $CONF_FILE" >&2
-      echo ""
-      exit 1
-    fi
-
-    if [ -z "$ENCFS_PASSWORD" ]; then
-      echo "ERROR: Missing ENCFS_PASSWORD setting. Check $CONF_FILE" >&2
       echo ""
       exit 1
     fi
@@ -462,7 +456,7 @@ process_commandline()
   done
 
   if [ -z "$CONF_FILE" ]; then
-    CONF_FILE="$DEFAULT_CONF_FILE"
+    CONF_FILE="$HOME/.psnapshot-enc.conf"
   fi
 
   if [ -z "$ENCFS_CONF_FILE" ]; then
@@ -500,6 +494,11 @@ fi
 . "$CONF_FILE"
 
 sanity_check;
+
+if [ -z "$ENCFS_PASSWORD" -a "$UMOUNT" = "0" ]; then
+  printf "* No password in config file. Enter ENCFS password: "
+  read -s ENCFS_PASSWORD
+fi
 
 if [ $INIT -eq 1 ]; then
   umount_encfs 2>/dev/null
