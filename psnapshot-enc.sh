@@ -35,7 +35,11 @@ mount_remote_sshfs()
 {
   mkdir -p "$SSHFS_MOUNT_PATH"
 
-  sshfs "${USER_AND_SERVER}:${TARGET_PATH}" "$SSHFS_MOUNT_PATH" -o Cipher="arcfour",uid="$(id -u)",gid="$(id -g)"
+  if [ $(id -u) -eq 0 ]; then
+    sshfs "${USER_AND_SERVER}:${TARGET_PATH}" "$SSHFS_MOUNT_PATH" -o Cipher="arcfour"
+  else
+    sshfs "${USER_AND_SERVER}:${TARGET_PATH}" "$SSHFS_MOUNT_PATH" -o Cipher="arcfour",uid="$(id -u)",gid="$(id -g)"
+  fi
   return $?
 }
 
