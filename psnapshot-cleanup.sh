@@ -47,18 +47,19 @@ for DIR in $DIRS; do
     if [ $COUNT -gt 1 ]; then
       IFS=$EOL
       find "$SUBDIR/" ! -uid 0 ! -type l |while read FN; do
-        chown -v 0:0 "$FN"
-        chmod -v u+rw,g+r-w,o+r-w "$FN"
+        chown 0:0 "$FN"
+        chmod u+rw,g+r-w,o+r-w "$FN"
       done
 
       MTIME_YEAR="$(echo "$MTIME" |cut -f1 -d'-')"
       MTIME_MONTH="$(echo "$MTIME" |cut -f2 -d'-')"
+      DIR_NAME="$(basename "$SUBDIR")"
 
       KEEP=0
       if [ $DAILY_COUNT -le $DAILY_KEEP ]; then
         DAILY_COUNT=$((DAILY_COUNT + 1))
         # We want to keep this day
-        echo "KEEP DAILY: $MTIME"
+        echo "KEEP DAILY $MTIME: $DIR_NAME"
         KEEP=1
       fi
 
@@ -67,7 +68,7 @@ for DIR in $DIRS; do
         MONTHLY_COUNT=$((MONTHLY_COUNT + 1))
         MONTH_LAST=$MTIME_MONTH
 
-        echo "KEEP MONTHLY: $MTIME"
+        echo "KEEP MONTHLY $MTIME: $DIR_NAME"
         YEAR_LAST=$MTIME_YEAR
         KEEP=1
       fi
@@ -77,15 +78,16 @@ for DIR in $DIRS; do
         YEAR_LAST=$MTIME_YEAR
 
         # We want to keep this year
-        echo "KEEP YEARLY: $MTIME"
+        echo "KEEP YEARLY $MTIME: $DIR_NAME"
         KEEP=1
       fi
 
       if [ $KEEP -eq 0 ]; then
-        echo "* Removing: $SUBDIR"
+        echo "REMOVE $MTIME: $DIR_NAME"
         rm -rf "$SUBDIR"
       fi
     fi
   done
+  echo ""
 done
 
