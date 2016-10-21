@@ -1,9 +1,9 @@
 #!/bin/bash
 
-MY_VERSION="0.21-BETA"
+MY_VERSION="0.22-BETA"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
-# Last update: January 1, 2016
+# Last update: October 21, 2016
 # (C) Copyright 2014-2016 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
@@ -232,8 +232,27 @@ backup()
       # Construct rsync line depending on the info we just retrieved
       RSYNC_LINE="-rtlx --safe-links --fuzzy --delete --delete-after --delete-excluded --log-format='%o: %n%L' -e 'ssh -q -c arcfour'"
 
-      if [ -n "$BW_LIMIT" ]; then
-        RSYNC_LINE="$RSYNC_LINE --bwlimit=$BW_LIMIT"
+      LIMIT=0
+      if [ -n "$LIMIT_KB" ]; then
+        if [ -n "$LIMIT_HOUR_START" -a -n "$LIMIT_HOUR_END" ]; then
+          CHOUR=`date +'%H'`
+          if [ $LIMIT_HOUR_START -le $LIMIT_HOUR_END ]; then
+            if [ $CHOUR -ge $LIMIT_HOUR_START -a $CHOUR -le $LIMIT_HOUR_END ]; then
+              LIMIT=1
+            fi
+          else
+            # Handle wrapping
+            if [ $CHOUR -ge $LIMIT_HOUR_START -o $CHOUR -le $LIMIT_HOUR_END ]; then
+              LIMIT=1
+            fi
+          fi
+        else
+          LIMIT=1
+        fi
+      fi
+
+      if [ $LIMIT -eq 1 ]; then
+        RSYNC_LINE="$RSYNC_LINE --bwlimit=$LIMIT_KB"
       fi
 
       if [ -n "$EXCLUDE_DIRS" ]; then
