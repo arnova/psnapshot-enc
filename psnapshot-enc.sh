@@ -159,11 +159,16 @@ check_command_error()
 
 backup()
 {
-  while true; do
-    # Rotate logfile
-    rm -f "${LOG_FILE}.old"
+  # Rotate logfile
+  rm -f "${LOG_FILE}.old"
+  if [ -e "${LOG_FILE}" ]; then
     mv "${LOG_FILE}" "${LOG_FILE}.old"
+  fi
 
+  # Truncate logfile
+  printf "" >"${LOG_FILE}"
+
+  while true; do
     CUR_DATE=`date "+%Y-%m-%d"`
 
     IFS=' '
@@ -528,7 +533,7 @@ process_commandline()
 
 # Mainline:
 ###########
-echo "psnapshot-enc v$MY_VERSION - (C) Copyright 2014-2016 by Arno van Amersfoort"
+echo "psnapshot-enc v$MY_VERSION - (C) Copyright 2014-2017 by Arno van Amersfoort"
 echo ""
 
 process_commandline $*;
