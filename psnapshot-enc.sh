@@ -182,12 +182,16 @@ backup()
         SOURCE_DIR="$ITEM"
       fi
 
+      DATE=`LC_ALL=C date +'%b %d %H:%M:%S'`
+      echo "* $DATE: Checking $SOURCE_DIR..." |tee -a "$LOG_FILE"
+
       # Reverse encode local path
       if [ "$ENCFS_ENABLE" != "0" ]; then
         umount_encfs 2>/dev/null # First unmount
 
         if ! mount_rev_encfs "$SOURCE_DIR"; then
           echo "ERROR: ENCFS mount of \"$SOURCE_DIR\" on \"$ENCFS_MOUNT_PATH\" failed. Aborting backup for $SOURCE_DIR!" >&2
+          echo "ERROR: ENCFS mount of \"$SOURCE_DIR\" on \"$ENCFS_MOUNT_PATH\" failed. Aborting backup for $SOURCE_DIR!" |tee -a "$LOG_FILE"
           continue;
         fi
       fi
@@ -195,6 +199,7 @@ backup()
       umount_remote_sshfs 2>/dev/null # First unmount
       if ! mount_remote_sshfs; then
         echo "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}\" on \"$SSHFS_MOUNT_PATH\" failed. Aborting backup for $SOURCE_DIR!" >&2
+        echo "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}\" on \"$SSHFS_MOUNT_PATH\" failed. Aborting backup for $SOURCE_DIR!" |tee -a "$LOG_FILE"
         continue;
       fi
 
@@ -202,6 +207,7 @@ backup()
       ENCODED_SUB_PATH="$(encode_path "$SOURCE_DIR" "$SUB_DIR")"
       if ! mkdir -p -- "$SSHFS_MOUNT_PATH/$ENCODED_SUB_PATH"; then
         echo "ERROR: Unable to create remote target directory \"${SSHFS_MOUNT_PATH}/${ENCODED_SUB_PATH}\". Aborting backup for $SOURCE_DIR!" >&2
+        echo "ERROR: Unable to create remote target directory \"${SSHFS_MOUNT_PATH}/${ENCODED_SUB_PATH}\". Aborting backup for $SOURCE_DIR!" |tee -a "$LOG_FILE"
         continue;
       fi
 
@@ -337,6 +343,7 @@ backup()
           fi
         else
           echo "ERROR: rsync failed" >&2
+          echo "ERROR: rsync failed" |tee -a "$LOG_FILE"
           # TODO: Log to root
           #. Showing log file:" >&2
           #grep -v -e 'building file list' -e 'files to consider' "$LOG_FILE"
