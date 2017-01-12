@@ -36,9 +36,9 @@ mount_remote_sshfs()
   mkdir -p "$SSHFS_MOUNT_PATH"
 
   if [ $(id -u) -eq 0 ]; then
-    sshfs "${USER_AND_SERVER}:${TARGET_PATH}" "$SSHFS_MOUNT_PATH" -o Cipher="arcfour"
+    sshfs "${USER_AND_SERVER}:${TARGET_PATH}" "$SSHFS_MOUNT_PATH" -o Cipher="arcfour" -o nonempty
   else
-    sshfs "${USER_AND_SERVER}:${TARGET_PATH}" "$SSHFS_MOUNT_PATH" -o Cipher="arcfour",uid="$(id -u)",gid="$(id -g)"
+    sshfs "${USER_AND_SERVER}:${TARGET_PATH}" "$SSHFS_MOUNT_PATH" -o Cipher="arcfour",uid="$(id -u)",gid="$(id -g)" -o nonempty
   fi
   return $?
 }
@@ -187,14 +187,14 @@ backup()
         umount_encfs 2>/dev/null # First unmount
 
         if ! mount_rev_encfs "$SOURCE_DIR"; then
-          echo "ERROR: ENCFS mount failed. Aborting backup for $SOURCE_DIR!" >&2
+          echo "ERROR: ENCFS mount of \"$SOURCE_DIR\" on \"$ENCFS_MOUNT_PATH\" failed. Aborting backup for $SOURCE_DIR!" >&2
           continue;
         fi
       fi
 
       umount_remote_sshfs 2>/dev/null # First unmount
       if ! mount_remote_sshfs; then
-        echo "ERROR: SSHFS mount failed. Aborting backup for $SOURCE_DIR!" >&2
+        echo "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}\" on \"$SSHFS_MOUNT_PATH\" failed. Aborting backup for $SOURCE_DIR!" >&2
         continue;
       fi
 
