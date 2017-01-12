@@ -1,10 +1,10 @@
-#!/bin/bash
+#!/bin/sh
 
-MY_VERSION="0.22-BETA"
+MY_VERSION="0.23-BETA"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
-# Last update: October 21, 2016
-# (C) Copyright 2014-2016 by Arno van Amersfoort
+# Last update: January 12, 2017
+# (C) Copyright 2014-2017 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
 #                         (note: you must remove all spaces and substitute the @ and the . at the proper locations!)
@@ -359,6 +359,32 @@ backup()
 }
 
 
+# Read password from stdin but disable echo of it
+read_stdin_password()
+{
+  local PASSWORD
+
+  # Disable echo.
+  stty -echo
+
+  # Set up trap to ensure echo is enabled before exiting if the script
+  # is terminated while echo is disabled.
+  trap 'stty echo' EXIT
+
+  # Read secret.
+  read PASSWORD
+
+  # Enable echo.
+  stty echo
+  trap - EXIT
+
+  # Print a newline because the newline entered by the user after
+  # entering the passcode is not echoed. This ensures that the
+  # next line of output begins at a new line.
+  echo "$PASSWORD"
+}
+
+
 show_help()
 {
   echo "Usage: psnapshot-enc.sh [options]" >&2
@@ -520,7 +546,9 @@ sanity_check;
 
 if [ -z "$ENCFS_PASSWORD" -a "$UMOUNT" = "0" ]; then
   printf "* No password in config file. Enter ENCFS password: "
-  read -s ENCFS_PASSWORD
+  
+  ENCFS_PASSWORD="$(read_stdin_password)"
+
   echo ""
 fi
 
