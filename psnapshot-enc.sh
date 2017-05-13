@@ -1,9 +1,9 @@
 #!/bin/sh
 
-MY_VERSION="0.23-BETA"
+MY_VERSION="0.24-BETA"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
-# Last update: January 12, 2017
+# Last update: April 18, 2017
 # (C) Copyright 2014-2017 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
@@ -169,8 +169,6 @@ backup()
   printf "" >"${LOG_FILE}"
 
   while true; do
-    CUR_DATE=`date "+%Y-%m-%d"`
-
     IFS=' '
     for ITEM in $BACKUP_DIRS; do
       # Determine folder name to use on target
@@ -215,26 +213,23 @@ backup()
       echo "* Checking for changes in $SOURCE_DIR..." |tee -a "$LOG_FILE"
 
       # Look for already existing snapshot directories
-      FOUND_SYNC=0
-      FOUND_CURRENT=0
       LAST_SNAPSHOT_ENC=""
+      LAST_SNAPSHOT_DEC=""
 
       # TODO: Instead of using stat, check the actual folder-name (just remove the xargs stat?)
       IFS=$EOL
       for ITEM in `find "$SSHFS_MOUNT_PATH/$ENCODED_SUB_PATH/" -maxdepth 1 -mindepth 1 -type d -print0 |xargs -r0 stat -c "%Y${TAB}%n" |sort -r |head -n3`; do
-        NAME="$(basename "$(echo "$ITEM" |cut -f2)")"
-        DECODED_NAME="$(decode_path "$SOURCE_DIR" "$NAME")"
+        NAME_ENC="$(basename "$(echo "$ITEM" |cut -f2)")"
+        NAME_DEC="$(decode_path "$SOURCE_DIR" "$NAME_ENC")"
 
-        case $DECODED_NAME in
-          .sync              ) FOUND_SYNC=1
-                               echo "* .sync folder found" |tee -a "$LOG_FILE"
+        case $NAME_DEC in
+          .sync              ) echo "* Existing .sync folder found" |tee -a "$LOG_FILE"
                                ;;
-          snapshot_$CUR_DATE ) FOUND_CURRENT=1
-                               echo "* $DECODED_NAME (current date) folder found" |tee -a "$LOG_FILE"
-                               ;;
-          snapshot_*         ) if [ -z "$LAST_SNAPSHOT_ENC" ]; then
-                                 LAST_SNAPSHOT_ENC="$NAME" # Use last snapshot as base
-                                 echo "* $DECODED_NAME (previous date) folder found" |tee -a "$LOG_FILE"
+          snapshot_*         ) if [ -z "$LAST_SNAPSHOT_DEC" ]; then
+                                 # Use last snapshot as base
+                                 LAST_SNAPSHOT_DEC="$NAME_DEC"
+                                 LAST_SNAPSHOT_ENC="$NAME_ENC"
+                                 echo "* $NAME_DEC (previous) date folder found" |tee -a "$LOG_FILE"
                                fi
                                ;;
         esac
@@ -283,12 +278,7 @@ backup()
         RSYNC_LINE="$RSYNC_LINE "$SOURCE_DIR/""
       fi
 
-      if [ $FOUND_CURRENT -eq 1 ]; then
-        SNAPSHOT_DIR="snapshot_${CUR_DATE}"
-      else
-        SNAPSHOT_DIR=".sync"
-      fi
-      RSYNC_LINE="$RSYNC_LINE -- "${USER_AND_SERVER}:\"${TARGET_PATH}/$(encode_path "$SOURCE_DIR" "$SUB_DIR/$SNAPSHOT_DIR")/\"""
+      RSYNC_LINE="$RSYNC_LINE -- "${USER_AND_SERVER}:\"${TARGET_PATH}/$(encode_path "$SOURCE_DIR" "$SUB_DIR/.sync")/\"""
 
       if [ -n "$EXCLUDE_DIRS" ]; then
         echo "* Excluding folders: $EXCLUDE_DIRS" |tee -a "$LOG_FILE"
@@ -326,19 +316,25 @@ backup()
         fi
 
         if [ $retval -eq 0 ]; then
+          CUR_DATE=`date "+%Y-%m-%d"`
 
-          # Update timestamp on base folder:
-          if [ $FOUND_CURRENT -ne 1 ]; then
-            # Rename .sync to current date-snapshot
-            echo "* Renaming \"${SSHFS_MOUNT_PATH}/${SUB_DIR}/.sync\" to \"${SSHFS_MOUNT_PATH}/${SUB_DIR}/snapshot_${CUR_DATE}\"" |tee -a "$LOG_FILE"
-            if [ $DRY_RUN -eq 0 ]; then
-              mv -- "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/.sync")" "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/snapshot_$CUR_DATE")"
-            fi
+          if [ "$LAST_SNAPSHOT_DEC" = "snapshot_${CUR_DATE}" ]; then
+            
+            # FIXME: Rename/delete current folder
+          fi
+
+          # Rename .sync to current date-snapshot
+          echo "* Renaming \"${SSHFS_MOUNT_PATH}/${SUB_DIR}/.sync\" to \"${SSHFS_MOUNT_PATH}/${SUB_DIR}/snapshot_${CUR_DATE}\"" |tee -a "$LOG_FILE"
+          if [ $DRY_RUN -eq 0 ]; then
+            mv -- "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/.sync")" "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/snapshot_$CUR_DATE")"
           fi
 
           echo "* Setting permissions 750 for \"$SSHFS_MOUNT_PATH/$SUB_DIR/snapshot_${CUR_DATE}\"" |tee -a "$LOG_FILE"
           if [ $DRY_RUN -eq 0 ]; then
+            # Set secure permissions
             chmod 750 -- "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/snapshot_${CUR_DATE}")"
+
+            # Update timestamp on base folder:
             touch -- "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/snapshot_${CUR_DATE}")"
           fi
         else
