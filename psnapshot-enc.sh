@@ -178,7 +178,9 @@ backup()
         SUB_DIR="$(echo "$ITEM" |cut -f2 -d':')"
         SOURCE_DIR="$(echo "$ITEM" |cut -f1 -d':')"
       else
-        SUB_DIR="$(echo "$ITEM" |tr / _)"
+         # No sub dir specified, use basename
+#        SUB_DIR="$(echo "$ITEM" |tr / _)"
+        SUB_DIR="$(basename "$ITEM")"
         SOURCE_DIR="$ITEM"
       fi
 
