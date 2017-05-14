@@ -1,9 +1,9 @@
 #!/bin/sh
 
-MY_VERSION="0.23-BETA"
+MY_VERSION="0.24-BETA"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
-# Last update: January 12, 2017
+# Last update: May 14, 2017
 # (C) Copyright 2014-2017 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
@@ -27,7 +27,6 @@ EOL='
 '
 TAB=$(printf "\t")
 
-
 # Functions:
 ############
 
@@ -36,9 +35,9 @@ mount_remote_sshfs()
   mkdir -p "$SSHFS_MOUNT_PATH"
 
   if [ $(id -u) -eq 0 ]; then
-    sshfs "${USER_AND_SERVER}:${TARGET_PATH}" "$SSHFS_MOUNT_PATH" -o Cipher="arcfour" -o nonempty
+    sshfs "${USER_AND_SERVER}:${TARGET_PATH}" "$SSHFS_MOUNT_PATH" -o Cipher="$SSH_CIPHER" -o nonempty
   else
-    sshfs "${USER_AND_SERVER}:${TARGET_PATH}" "$SSHFS_MOUNT_PATH" -o Cipher="arcfour",uid="$(id -u)",gid="$(id -g)" -o nonempty
+    sshfs "${USER_AND_SERVER}:${TARGET_PATH}" "$SSHFS_MOUNT_PATH" -o Cipher="$SSH_CIPHER",uid="$(id -u)",gid="$(id -g)" -o nonempty
   fi
   return $?
 }
@@ -178,9 +177,7 @@ backup()
         SUB_DIR="$(echo "$ITEM" |cut -f2 -d':')"
         SOURCE_DIR="$(echo "$ITEM" |cut -f1 -d':')"
       else
-         # No sub dir specified, use basename
-#        SUB_DIR="$(echo "$ITEM" |tr / _)"
-        SUB_DIR="$(basename "$ITEM")"
+        SUB_DIR="$(echo "$ITEM" |tr / _)"
         SOURCE_DIR="$ITEM"
       fi
 
@@ -243,7 +240,7 @@ backup()
       done
 
       # Construct rsync line depending on the info we just retrieved
-      RSYNC_LINE="-rtlx --safe-links --fuzzy --delete --delete-after --delete-excluded --log-format='%o: %n%L' -e 'ssh -q -c arcfour'"
+      RSYNC_LINE="-rtlx --chmod=750 --safe-links --fuzzy --delete --delete-after --delete-excluded --log-format='%o: %n%L' -e 'ssh -q -c $SSH_CIPHER'"
 
       LIMIT=0
       if [ -n "$LIMIT_KB" ]; then
@@ -297,14 +294,22 @@ backup()
       fi
 #        echo "-> $RSYNC_LINE"
 
+      echo "* Looking for changes..." |tee -a "$LOG_FILE"
+
       # Need to unset IFS for commandline parse to work properly
       unset IFS
       # NOTE: Ignore root (eg. permission) changes with ' ./$'
       # NOTE: We use rsync + ssh directly (without sshfs) as this is much faster
       # TODO: Can we optimise this by aborting on the first change?:
-      change_count="$(eval rsync -i --dry-run $RSYNC_LINE |grep -v ' ./$' |wc -l)"
+      echo "-> rsync -i --dry-run $RSYNC_LINE" |tee -a "$LOG_FILE"
+      result="$(eval rsync -i --dry-run $RSYNC_LINE)"
+      retval=$?
+      change_count="$(echo "$result" |grep -v ' ./$' |wc -l)"
 
-      if [ $change_count -gt 0 ]; then
+      if [ $retval -ne 0 ]; then
+        echo "ERROR: rsync failed ($retval)" >&2
+        echo "ERROR: rsync failed ($retval)" |tee -a "$LOG_FILE"
+      elif [ $change_count -gt 0 ]; then
         echo "* $change_count changes detected -> syncing remote..." |tee -a "$LOG_FILE"
 
         RSYNC_LINE="-v --log-file="$LOG_FILE" $RSYNC_LINE"
@@ -411,7 +416,8 @@ show_help()
   echo "--foreground                - Foreground daemon mode" >&2
   echo "--mount                     - Mount remote sshfs/encfs filesystem" >&2
   echo "--umount                    - Umount remote sshfs/encfs filesystem" >&2
-  echo "--conf|-c={config_file}     - Specify alternate configuration file" >&2
+  echo "--conf|-c={config_file}     - Specify alternate configuration file (default=~/.psnapshot.conf)" >&2
+  echo "--cipher={cipher}           - Specify SSH cipher (default=arcfour)" >&2
   echo ""
 }
 
@@ -493,6 +499,7 @@ process_commandline()
 
     case "$ARGNAME" in
               --conf|-c) CONF_FILE="$ARGVAL";;
+               --cipher) SSH_CIPHER="$ARGVAL";;
        --dry-run|--test) DRY_RUN=1;;
                 --mount) MOUNT=1;;
         --background|-b) BACKGROUND=1;;
@@ -520,6 +527,10 @@ process_commandline()
 
   if [ -z "$CONF_FILE" ]; then
     CONF_FILE="$HOME/.psnapshot-enc.conf"
+  fi
+
+  if [ -z "$SSH_CIPHER" ]; then
+    SSH_CIPHER="arcfour"
   fi
 
   if [ -z "$ENCFS_CONF_FILE" ]; then
