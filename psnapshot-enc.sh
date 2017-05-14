@@ -1,6 +1,6 @@
 #!/bin/sh
 
-MY_VERSION="0.24-BETA"
+MY_VERSION="0.25-BETA"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
 # Last update: May 14, 2017
@@ -158,217 +158,222 @@ check_command_error()
 
 backup()
 {
-  # Rotate logfile
-  rm -f "${LOG_FILE}.old"
-  if [ -e "${LOG_FILE}" ]; then
-    mv "${LOG_FILE}" "${LOG_FILE}.old"
-  fi
+  local RET=0
 
-  # Truncate logfile
-  printf "" >"${LOG_FILE}"
+  CUR_DATE=`date "+%Y-%m-%d"`
 
-  while true; do
-    CUR_DATE=`date "+%Y-%m-%d"`
+  IFS=' '
+  for ITEM in $BACKUP_DIRS; do
+    # Determine folder name to use on target
+    if echo "$ITEM" |grep -q ':'; then
+      SUB_DIR="$(echo "$ITEM" |cut -f2 -d':')"
+      SOURCE_DIR="$(echo "$ITEM" |cut -f1 -d':')"
+    else
+      SUB_DIR="$(echo "$ITEM" |tr / _)"
+      SOURCE_DIR="$ITEM"
+    fi
 
-    IFS=' '
-    for ITEM in $BACKUP_DIRS; do
-      # Determine folder name to use on target
-      if echo "$ITEM" |grep -q ':'; then
-        SUB_DIR="$(echo "$ITEM" |cut -f2 -d':')"
-        SOURCE_DIR="$(echo "$ITEM" |cut -f1 -d':')"
-      else
-        SUB_DIR="$(echo "$ITEM" |tr / _)"
-        SOURCE_DIR="$ITEM"
-      fi
+    DATE=`LC_ALL=C date +'%b %d %H:%M:%S'`
+    echo "* $DATE: Checking $SOURCE_DIR..." |tee -a "$LOG_FILE"
 
-      DATE=`LC_ALL=C date +'%b %d %H:%M:%S'`
-      echo "* $DATE: Checking $SOURCE_DIR..." |tee -a "$LOG_FILE"
+    # Reverse encode local path
+    if [ "$ENCFS_ENABLE" != "0" ]; then
+      umount_encfs 2>/dev/null # First unmount
 
-      # Reverse encode local path
-      if [ "$ENCFS_ENABLE" != "0" ]; then
-        umount_encfs 2>/dev/null # First unmount
-
-        if ! mount_rev_encfs "$SOURCE_DIR"; then
-          echo "ERROR: ENCFS mount of \"$SOURCE_DIR\" on \"$ENCFS_MOUNT_PATH\" failed. Aborting backup for $SOURCE_DIR!" >&2
-          echo "ERROR: ENCFS mount of \"$SOURCE_DIR\" on \"$ENCFS_MOUNT_PATH\" failed. Aborting backup for $SOURCE_DIR!" |tee -a "$LOG_FILE"
-          continue;
-        fi
-      fi
-
-      umount_remote_sshfs 2>/dev/null # First unmount
-      if ! mount_remote_sshfs; then
-        echo "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}\" on \"$SSHFS_MOUNT_PATH\" failed. Aborting backup for $SOURCE_DIR!" >&2
-        echo "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}\" on \"$SSHFS_MOUNT_PATH\" failed. Aborting backup for $SOURCE_DIR!" |tee -a "$LOG_FILE"
+      if ! mount_rev_encfs "$SOURCE_DIR"; then
+        echo "ERROR: ENCFS mount of \"$SOURCE_DIR\" on \"$ENCFS_MOUNT_PATH\" failed. Aborting backup for $SOURCE_DIR!" >&2
+        echo "ERROR: ENCFS mount of \"$SOURCE_DIR\" on \"$ENCFS_MOUNT_PATH\" failed. Aborting backup for $SOURCE_DIR!" |tee -a "$LOG_FILE"
+        RET=1
         continue;
       fi
+    fi
 
-      # Create remote directory 
-      ENCODED_SUB_PATH="$(encode_path "$SOURCE_DIR" "$SUB_DIR")"
-      if ! mkdir -p -- "$SSHFS_MOUNT_PATH/$ENCODED_SUB_PATH"; then
-        echo "ERROR: Unable to create remote target directory \"${SSHFS_MOUNT_PATH}/${ENCODED_SUB_PATH}\". Aborting backup for $SOURCE_DIR!" >&2
-        echo "ERROR: Unable to create remote target directory \"${SSHFS_MOUNT_PATH}/${ENCODED_SUB_PATH}\". Aborting backup for $SOURCE_DIR!" |tee -a "$LOG_FILE"
-        continue;
-      fi
+    umount_remote_sshfs 2>/dev/null # First unmount
+    if ! mount_remote_sshfs; then
+      echo "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}\" on \"$SSHFS_MOUNT_PATH\" failed. Aborting backup for $SOURCE_DIR!" >&2
+      echo "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}\" on \"$SSHFS_MOUNT_PATH\" failed. Aborting backup for $SOURCE_DIR!" |tee -a "$LOG_FILE"
+      RET=1
+      continue;
+    fi
 
-      # First check whether there are any changes
-      echo "* Checking for changes in $SOURCE_DIR..." |tee -a "$LOG_FILE"
+    # Create remote directory 
+    ENCODED_SUB_PATH="$(encode_path "$SOURCE_DIR" "$SUB_DIR")"
+    if ! mkdir -p -- "$SSHFS_MOUNT_PATH/$ENCODED_SUB_PATH"; then
+      echo "ERROR: Unable to create remote target directory \"${SSHFS_MOUNT_PATH}/${ENCODED_SUB_PATH}\". Aborting backup for $SOURCE_DIR!" >&2
+      echo "ERROR: Unable to create remote target directory \"${SSHFS_MOUNT_PATH}/${ENCODED_SUB_PATH}\". Aborting backup for $SOURCE_DIR!" |tee -a "$LOG_FILE"
+      RET=1
+      continue;
+    fi
 
-      # Look for already existing snapshot directories
-      FOUND_SYNC=0
-      FOUND_CURRENT=0
-      LAST_SNAPSHOT_ENC=""
+    # First check whether there are any changes
+    echo "* Checking for changes in $SOURCE_DIR..." |tee -a "$LOG_FILE"
 
-      # TODO: Instead of using stat, check the actual folder-name (just remove the xargs stat?)
-      IFS=$EOL
-      for ITEM in `find "$SSHFS_MOUNT_PATH/$ENCODED_SUB_PATH/" -maxdepth 1 -mindepth 1 -type d -print0 |xargs -r0 stat -c "%Y${TAB}%n" |sort -r |head -n3`; do
-        NAME="$(basename "$(echo "$ITEM" |cut -f2)")"
-        DECODED_NAME="$(decode_path "$SOURCE_DIR" "$NAME")"
+    # Look for already existing snapshot directories
+    FOUND_SYNC=0
+    FOUND_CURRENT=0
+    LAST_SNAPSHOT_ENC=""
 
-        case $DECODED_NAME in
-          .sync              ) FOUND_SYNC=1
-                               echo "* .sync folder found" |tee -a "$LOG_FILE"
-                               ;;
-          snapshot_$CUR_DATE ) FOUND_CURRENT=1
-                               echo "* $DECODED_NAME (current date) folder found" |tee -a "$LOG_FILE"
-                               ;;
-          snapshot_*         ) if [ -z "$LAST_SNAPSHOT_ENC" ]; then
-                                 LAST_SNAPSHOT_ENC="$NAME" # Use last snapshot as base
-                                 echo "* $DECODED_NAME (previous date) folder found" |tee -a "$LOG_FILE"
-                               fi
-                               ;;
-        esac
-      done
+    # TODO: Instead of using stat, check the actual folder-name (just remove the xargs stat?)
+    IFS=$EOL
+    for ITEM in `find "$SSHFS_MOUNT_PATH/$ENCODED_SUB_PATH/" -maxdepth 1 -mindepth 1 -type d -print0 |xargs -r0 stat -c "%Y${TAB}%n" |sort -r |head -n3`; do
+      NAME="$(basename "$(echo "$ITEM" |cut -f2)")"
+      DECODED_NAME="$(decode_path "$SOURCE_DIR" "$NAME")"
 
-      # Construct rsync line depending on the info we just retrieved
-      RSYNC_LINE="-rtlx --chmod=750 --safe-links --fuzzy --delete --delete-after --delete-excluded --log-format='%o: %n%L' -e 'ssh -q -c $SSH_CIPHER'"
-
-      LIMIT=0
-      if [ -n "$LIMIT_KB" ]; then
-        if [ -n "$LIMIT_HOUR_START" -a -n "$LIMIT_HOUR_END" ]; then
-          CHOUR=`date +'%H'`
-          if [ $LIMIT_HOUR_START -le $LIMIT_HOUR_END ]; then
-            if [ $CHOUR -ge $LIMIT_HOUR_START -a $CHOUR -le $LIMIT_HOUR_END ]; then
-              LIMIT=1
-            fi
-          else
-            # Handle wrapping
-            if [ $CHOUR -ge $LIMIT_HOUR_START -o $CHOUR -le $LIMIT_HOUR_END ]; then
-              LIMIT=1
-            fi
-          fi
-        else
-          LIMIT=1
-        fi
-      fi
-
-      if [ $LIMIT -eq 1 ]; then
-        RSYNC_LINE="$RSYNC_LINE --bwlimit=$LIMIT_KB"
-      fi
-
-      if [ -n "$EXCLUDE_DIRS" ]; then
-        IFS=' '
-        for EXDIR in $EXCLUDE_DIRS; do
-          RSYNC_LINE="$RSYNC_LINE --exclude $(encode_path "$SOURCE_DIR" "$EXDIR")/"
-        done
-      fi
-
-      if [ -n "$LAST_SNAPSHOT_ENC" ]; then
-        RSYNC_LINE="$RSYNC_LINE --link-dest=../$LAST_SNAPSHOT_ENC"
-      fi
-
-      if [ "$ENCFS_ENABLE" != "0" ]; then
-        RSYNC_LINE="$RSYNC_LINE "$ENCFS_MOUNT_PATH/""
-      else
-        RSYNC_LINE="$RSYNC_LINE "$SOURCE_DIR/""
-      fi
-
-      if [ $FOUND_CURRENT -eq 1 ]; then
-        SNAPSHOT_DIR="snapshot_${CUR_DATE}"
-      else
-        SNAPSHOT_DIR=".sync"
-      fi
-      RSYNC_LINE="$RSYNC_LINE -- "${USER_AND_SERVER}:\"${TARGET_PATH}/$(encode_path "$SOURCE_DIR" "$SUB_DIR/$SNAPSHOT_DIR")/\"""
-
-      if [ -n "$EXCLUDE_DIRS" ]; then
-        echo "* Excluding folders: $EXCLUDE_DIRS" |tee -a "$LOG_FILE"
-      fi
-#        echo "-> $RSYNC_LINE"
-
-      echo "* Looking for changes..." |tee -a "$LOG_FILE"
-
-      # Need to unset IFS for commandline parse to work properly
-      unset IFS
-      # NOTE: Ignore root (eg. permission) changes with ' ./$'
-      # NOTE: We use rsync + ssh directly (without sshfs) as this is much faster
-      # TODO: Can we optimise this by aborting on the first change?:
-      echo "-> rsync -i --dry-run $RSYNC_LINE" |tee -a "$LOG_FILE"
-      result="$(eval rsync -i --dry-run $RSYNC_LINE)"
-      retval=$?
-      change_count="$(echo "$result" |grep -v ' ./$' |wc -l)"
-
-      if [ $retval -ne 0 ]; then
-        echo "ERROR: rsync failed ($retval)" >&2
-        echo "ERROR: rsync failed ($retval)" |tee -a "$LOG_FILE"
-      elif [ $change_count -gt 0 ]; then
-        echo "* $change_count changes detected -> syncing remote..." |tee -a "$LOG_FILE"
-
-        RSYNC_LINE="-v --log-file="$LOG_FILE" $RSYNC_LINE"
-
-        if [ "$VERBOSE" = "1" ]; then
-          RSYNC_LINE="--progress $RSYNC_LINE"
-        fi
-
-        if [ $DRY_RUN -eq 1 ]; then
-          RSYNC_LINE="--dry-run $RSYNC_LINE"
-        fi
-
-        echo "-> rsync $RSYNC_LINE" |tee -a "$LOG_FILE"
-
-        if [ $DECODE -eq 0 ]; then
-          eval rsync $RSYNC_LINE 2>&1
-          retval=$?
-        else
-          eval rsync $RSYNC_LINE 2>&1 |rsync_parse "$SOURCE_DIR"
-          retval=$?
-        fi
-
-        if [ $retval -eq 0 ]; then
-
-          # Update timestamp on base folder:
-          if [ $FOUND_CURRENT -ne 1 ]; then
-            # Rename .sync to current date-snapshot
-            echo "* Renaming \"${SSHFS_MOUNT_PATH}/${SUB_DIR}/.sync\" to \"${SSHFS_MOUNT_PATH}/${SUB_DIR}/snapshot_${CUR_DATE}\"" |tee -a "$LOG_FILE"
-            if [ $DRY_RUN -eq 0 ]; then
-              mv -- "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/.sync")" "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/snapshot_$CUR_DATE")"
-            fi
-          fi
-
-          echo "* Setting permissions 750 for \"$SSHFS_MOUNT_PATH/$SUB_DIR/snapshot_${CUR_DATE}\"" |tee -a "$LOG_FILE"
-          if [ $DRY_RUN -eq 0 ]; then
-            chmod 750 -- "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/snapshot_${CUR_DATE}")"
-            touch -- "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/snapshot_${CUR_DATE}")"
-          fi
-        else
-          echo "ERROR: rsync failed" >&2
-          echo "ERROR: rsync failed" |tee -a "$LOG_FILE"
-          # TODO: Log to root
-          #. Showing log file:" >&2
-          #grep -v -e 'building file list' -e 'files to consider' "$LOG_FILE"
-        fi
-      else
-        echo "* No changes detected..." |tee -a "$LOG_FILE"
-      fi
-
-      if [ "$ENCFS_ENABLE" != "0" ]; then
-        umount_encfs;
-      fi
-
-      umount_remote_sshfs;
+      case $DECODED_NAME in
+        .sync              ) FOUND_SYNC=1
+                             echo "* .sync folder found" |tee -a "$LOG_FILE"
+                             ;;
+        snapshot_$CUR_DATE ) FOUND_CURRENT=1
+                             echo "* $DECODED_NAME (current date) folder found" |tee -a "$LOG_FILE"
+                             ;;
+        snapshot_*         ) if [ -z "$LAST_SNAPSHOT_ENC" ]; then
+                               LAST_SNAPSHOT_ENC="$NAME" # Use last snapshot as base
+                               echo "* $DECODED_NAME (previous date) folder found" |tee -a "$LOG_FILE"
+                             fi
+                             ;;
+      esac
     done
 
-    if [ $BACKGROUND -eq 0 -a $FOREGROUND -eq 0 ]; then
-      # We're done
-      break;
+    # Construct rsync line depending on the info we just retrieved
+    RSYNC_LINE="-rtlx --chmod=750 --safe-links --fuzzy --delete --delete-after --delete-excluded --log-format='%o: %n%L' -e 'ssh -q -c $SSH_CIPHER'"
+
+    LIMIT=0
+    if [ -n "$LIMIT_KB" ]; then
+      if [ -n "$LIMIT_HOUR_START" -a -n "$LIMIT_HOUR_END" ]; then
+        CHOUR=`date +'%H'`
+        if [ $LIMIT_HOUR_START -le $LIMIT_HOUR_END ]; then
+          if [ $CHOUR -ge $LIMIT_HOUR_START -a $CHOUR -le $LIMIT_HOUR_END ]; then
+            LIMIT=1
+          fi
+        else
+          # Handle wrapping
+          if [ $CHOUR -ge $LIMIT_HOUR_START -o $CHOUR -le $LIMIT_HOUR_END ]; then
+            LIMIT=1
+          fi
+        fi
+      else
+        LIMIT=1
+      fi
+    fi
+
+    if [ $LIMIT -eq 1 ]; then
+      RSYNC_LINE="$RSYNC_LINE --bwlimit=$LIMIT_KB"
+    fi
+
+    if [ -n "$EXCLUDE_DIRS" ]; then
+      IFS=' '
+      for EXDIR in $EXCLUDE_DIRS; do
+        RSYNC_LINE="$RSYNC_LINE --exclude $(encode_path "$SOURCE_DIR" "$EXDIR")/"
+      done
+    fi
+
+    if [ -n "$LAST_SNAPSHOT_ENC" ]; then
+      RSYNC_LINE="$RSYNC_LINE --link-dest=../$LAST_SNAPSHOT_ENC"
+    fi
+
+    if [ "$ENCFS_ENABLE" != "0" ]; then
+      RSYNC_LINE="$RSYNC_LINE "$ENCFS_MOUNT_PATH/""
+    else
+      RSYNC_LINE="$RSYNC_LINE "$SOURCE_DIR/""
+    fi
+
+    if [ $FOUND_CURRENT -eq 1 ]; then
+      SNAPSHOT_DIR="snapshot_${CUR_DATE}"
+    else
+      SNAPSHOT_DIR=".sync"
+    fi
+    RSYNC_LINE="$RSYNC_LINE -- "${USER_AND_SERVER}:\"${TARGET_PATH}/$(encode_path "$SOURCE_DIR" "$SUB_DIR/$SNAPSHOT_DIR")/\"""
+
+    if [ -n "$EXCLUDE_DIRS" ]; then
+      echo "* Excluding folders: $EXCLUDE_DIRS" |tee -a "$LOG_FILE"
+    fi
+#        echo "-> $RSYNC_LINE"
+
+    echo "* Looking for changes..." |tee -a "$LOG_FILE"
+
+    # Need to unset IFS for commandline parse to work properly
+    unset IFS
+    # NOTE: Ignore root (eg. permission) changes with ' ./$'
+    # NOTE: We use rsync + ssh directly (without sshfs) as this is much faster
+    # TODO: Can we optimise this by aborting on the first change?:
+    echo "-> rsync -i --dry-run $RSYNC_LINE" |tee -a "$LOG_FILE"
+    result="$(eval rsync -i --dry-run $RSYNC_LINE)"
+    retval=$?
+    change_count="$(echo "$result" |grep -v ' ./$' |wc -l)"
+
+    if [ $retval -ne 0 ]; then
+      echo "ERROR: rsync failed ($retval)" >&2
+      echo "ERROR: rsync failed ($retval)" |tee -a "$LOG_FILE"
+      RET=1
+    elif [ $change_count -gt 0 ]; then
+      echo "* $change_count changes detected -> syncing remote..." |tee -a "$LOG_FILE"
+
+      RSYNC_LINE="-v --log-file="$LOG_FILE" $RSYNC_LINE"
+
+      if [ "$VERBOSE" = "1" ]; then
+        RSYNC_LINE="--progress $RSYNC_LINE"
+      fi
+
+      if [ $DRY_RUN -eq 1 ]; then
+        RSYNC_LINE="--dry-run $RSYNC_LINE"
+      fi
+
+      echo "-> rsync $RSYNC_LINE" |tee -a "$LOG_FILE"
+
+      if [ $DECODE -eq 0 ]; then
+        eval rsync $RSYNC_LINE 2>&1
+        retval=$?
+      else
+        eval rsync $RSYNC_LINE 2>&1 |rsync_parse "$SOURCE_DIR"
+        retval=$?
+      fi
+
+      if [ $retval -eq 0 ]; then
+        # Update timestamp on base folder:
+        if [ $FOUND_CURRENT -ne 1 ]; then
+          # Rename .sync to current date-snapshot
+          echo "* Renaming \"${SSHFS_MOUNT_PATH}/${SUB_DIR}/.sync\" to \"${SSHFS_MOUNT_PATH}/${SUB_DIR}/snapshot_${CUR_DATE}\"" |tee -a "$LOG_FILE"
+          if [ $DRY_RUN -eq 0 ]; then
+            mv -- "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/.sync")" "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/snapshot_$CUR_DATE")"
+          fi
+        fi
+
+        echo "* Setting permissions 750 for \"$SSHFS_MOUNT_PATH/$SUB_DIR/snapshot_${CUR_DATE}\"" |tee -a "$LOG_FILE"
+        if [ $DRY_RUN -eq 0 ]; then
+          chmod 750 -- "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/snapshot_${CUR_DATE}")"
+          touch -- "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/snapshot_${CUR_DATE}")"
+        fi
+      else
+        echo "ERROR: rsync failed" >&2
+        echo "ERROR: rsync failed" |tee -a "$LOG_FILE"
+        RET=1
+        # TODO: Log to root
+        #. Showing log file:" >&2
+        #grep -v -e 'building file list' -e 'files to consider' "$LOG_FILE"
+      fi
+    else
+      echo "* No changes detected..." |tee -a "$LOG_FILE"
+    fi
+
+    if [ "$ENCFS_ENABLE" != "0" ]; then
+      umount_encfs;
+    fi
+
+    umount_remote_sshfs;
+  done
+
+  return $RET
+}
+
+
+backup_bg_process()
+{
+  while true; do
+    result="$(backup 2>&1)"
+    retval=$?
+
+    if [ $retval -ne 0 ] || echo "$result" |grep -q -i -e error -e warning -e fail ]; then
+      printf "Subject: psnapshot FAILURE\n$result\n" |sendmail "$MAIL_TO"
     fi
 
     # Sleep till the next sync
@@ -571,10 +576,14 @@ sanity_check;
 
 if [ -z "$ENCFS_PASSWORD" -a "$UMOUNT" = "0" ]; then
   printf "* No password in config file. Enter ENCFS password: "
-  
+
   ENCFS_PASSWORD="$(read_stdin_password)"
 
   echo ""
+fi
+
+if [ -z "$MAIL_TO" ]; then
+  MAIL_TO="root"
 fi
 
 if [ $INIT -eq 1 ]; then
@@ -618,8 +627,17 @@ else
     exit 1
   fi
 
-  if [ $BACKGROUND -eq 1 ]; then
-    backup &
+  # Rotate logfile
+  rm -f "${LOG_FILE}.old"
+  if [ -e "${LOG_FILE}" ]; then
+    mv "${LOG_FILE}" "${LOG_FILE}.old"
+  fi
+
+  # Truncate logfile
+  printf "" >"${LOG_FILE}"
+
+  if [ $BACKGROUND -eq 1 -a $FOREGROUND -eq 0 ]; then
+    backup_bg_process &
   else
     backup
   fi
