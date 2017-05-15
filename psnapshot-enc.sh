@@ -1,6 +1,6 @@
 #!/bin/sh
 
-MY_VERSION="0.27-BETA"
+MY_VERSION="0.30-BETA"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
 # Last update: May 15, 2017
@@ -35,9 +35,9 @@ mount_remote_sshfs()
   mkdir -p "$SSHFS_MOUNT_PATH"
 
   if [ $(id -u) -eq 0 ]; then
-    sshfs "${USER_AND_SERVER}:${TARGET_PATH}" "$SSHFS_MOUNT_PATH" -o Cipher="$SSH_CIPHER" -o nonempty
+    sshfs "${USER_AND_SERVER}:${TARGET_PATH}/$1" "$SSHFS_MOUNT_PATH" -o Cipher="$SSH_CIPHER" -o nonempty
   else
-    sshfs "${USER_AND_SERVER}:${TARGET_PATH}" "$SSHFS_MOUNT_PATH" -o Cipher="$SSH_CIPHER",uid="$(id -u)",gid="$(id -g)" -o nonempty
+    sshfs "${USER_AND_SERVER}:${TARGET_PATH}/$1" "$SSHFS_MOUNT_PATH" -o Cipher="$SSH_CIPHER",uid="$(id -u)",gid="$(id -g)" -o nonempty
   fi
   return $?
 }
@@ -52,7 +52,7 @@ umount_remote_sshfs()
 
 mount_remote_encfs()
 {
-  if mount_remote_sshfs; then
+  if mount_remote_sshfs "$1"; then
     mkdir -p "$ENCFS_MOUNT_PATH"
     if ENCFS6_CONFIG="$ENCFS_CONF_FILE" encfs --extpass="echo "$ENCFS_PASSWORD"" --standard "$SSHFS_MOUNT_PATH" "$ENCFS_MOUNT_PATH"; then
       return 0
@@ -191,22 +191,12 @@ backup()
     fi
 
     umount_remote_sshfs 2>/dev/null # First unmount
-    if ! mount_remote_sshfs; then
-      echo "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}\" on \"$SSHFS_MOUNT_PATH\" failed. Aborting backup for $SOURCE_DIR!" >&2
-      echo "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}\" on \"$SSHFS_MOUNT_PATH\" failed. Aborting backup for $SOURCE_DIR!" |tee -a "$LOG_FILE"
+    if ! mount_remote_sshfs "$SUB_DIR"; then
+      echo "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}/$SUB_DIR\" on \"$SSHFS_MOUNT_PATH\" failed. Aborting backup for $SOURCE_DIR!" >&2
+      echo "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}/$SUB_DIR\" on \"$SSHFS_MOUNT_PATH\" failed. Aborting backup for $SOURCE_DIR!" |tee -a "$LOG_FILE"
       RET=1
       continue;
     fi
-
-    # Check remote base directory
-    ENCODED_SUB_PATH="$(encode_path "$SOURCE_DIR" "$SUB_DIR")"
-    if [ ! -d "$SSHFS_MOUNT_PATH/$ENCODED_SUB_PATH" ]; then
-      echo "ERROR: Remote directory \"$SUB_DIR\" does not exist (yet)! You probably need to initialise (--init) first. Aborting backup for $SOURCE_DIR!" >&2
-      echo "ERROR: Remote directory \"$SUB_DIR\" does not exist (yet)! You probably need to initialise (--init) first. Aborting backup for $SOURCE_DIR!" |tee -a "$LOG_FILE"
-      RET=1
-      continue;
-    fi
-
 
     # Look for already existing snapshot directories
     FOUND_SYNC=0
@@ -216,7 +206,7 @@ backup()
     # First get a list of all the snapshot folders
     DIR_LIST=""
     IFS=$EOL
-    for ITEM in `find "$SSHFS_MOUNT_PATH/$ENCODED_SUB_PATH/" -maxdepth 1 -mindepth 1 -type d`; do
+    for ITEM in `find "$SSHFS_MOUNT_PATH/" -maxdepth 1 -mindepth 1 -type d`; do
       NAME="$(basename "$ITEM")"
       DECODED_NAME="$(decode_path "$SOURCE_DIR" "$NAME")"
       DIR_LIST="$DECODED_NAME $NAME\n$DIR_LIST"
@@ -228,19 +218,21 @@ backup()
       ENCODED_NAME="$(echo "$ITEM" |cut -d' ' -f2)"
 
       case $DECODED_NAME in
-        .sync              ) FOUND_SYNC=1
-                             echo "* .sync ($ENCODED_NAME) folder found" |tee -a "$LOG_FILE"
-                             ;;
-        snapshot_$CUR_DATE ) FOUND_CURRENT=1
-                             echo "* $DECODED_NAME ($ENCODED_NAME) current date folder found" |tee -a "$LOG_FILE"
-                             ;;
-        snapshot_*         ) if [ -z "$LAST_SNAPSHOT_ENC" ]; then
-                               LAST_SNAPSHOT_ENC="$ENCODED_NAME" # Use last snapshot as base
-                               echo "* $DECODED_NAME ($ENCODED_NAME) previous date folder found" |tee -a "$LOG_FILE"
-                             fi
-                             ;;
+        .sync                ) FOUND_SYNC=1
+                               echo "* .sync ($ENCODED_NAME) folder found" |tee -a "$LOG_FILE"
+                               ;;
+        snapshot_${CUR_DATE} ) FOUND_CURRENT=1
+                               echo "* $DECODED_NAME ($ENCODED_NAME) current date folder found" |tee -a "$LOG_FILE"
+                               ;;
+        snapshot_*           ) if [ -z "$LAST_SNAPSHOT_ENC" ]; then
+                                 LAST_SNAPSHOT_ENC="$ENCODED_NAME" # Use last snapshot as base
+                                 echo "* $DECODED_NAME ($ENCODED_NAME) previous date folder found" |tee -a "$LOG_FILE"
+                               fi
+                               ;;
       esac
     done
+
+
 
     # Construct rsync line depending on the info we just retrieved
     RSYNC_LINE="-rtlx --safe-links --fuzzy --delete --delete-after --delete-excluded --log-format='%o: %n%L' -e 'ssh -q -c $SSH_CIPHER'"
@@ -290,7 +282,7 @@ backup()
     else
       SNAPSHOT_DIR=".sync"
     fi
-    RSYNC_LINE="$RSYNC_LINE -- "${USER_AND_SERVER}:\"${TARGET_PATH}/$(encode_path "$SOURCE_DIR" "$SUB_DIR/$SNAPSHOT_DIR")/\"""
+    RSYNC_LINE="$RSYNC_LINE -- "${USER_AND_SERVER}:\"${TARGET_PATH}/$SUB_DIR/$(encode_path "$SOURCE_DIR" "$SNAPSHOT_DIR")/\"""
 
     if [ -n "$EXCLUDE_DIRS" ]; then
       echo "* Excluding folders: $EXCLUDE_DIRS" |tee -a "$LOG_FILE"
@@ -302,7 +294,7 @@ backup()
     # Need to unset IFS for commandline parse to work properly
     unset IFS
     # NOTE: Ignore root (eg. permission) changes with ' ./$'
-    # NOTE: We use rsync + ssh directly (without sshfs) as this is much faster
+    # NOTE: We use rsync over ssh directly (without sshfs) as this is much faster
     # TODO: Can we optimise this by aborting on the first change?:
     echo "-> rsync -i --dry-run $RSYNC_LINE" |tee -a "$LOG_FILE"
     result="$(eval rsync -i --dry-run $RSYNC_LINE)"
@@ -342,14 +334,14 @@ backup()
           # Rename .sync to current date-snapshot
           echo "* Renaming \"${SUB_DIR}/.sync\" to \"${SUB_DIR}/snapshot_${CUR_DATE}\"" |tee -a "$LOG_FILE"
           if [ $DRY_RUN -eq 0 ]; then
-            mv -- "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/.sync")" "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/snapshot_$CUR_DATE")"
+            mv -- "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" ".sync")" "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "snapshot_${CUR_DATE}")"
           fi
         fi
 
         echo "* Setting permissions 750 for \"$SUB_DIR/snapshot_${CUR_DATE}\"" |tee -a "$LOG_FILE"
         if [ $DRY_RUN -eq 0 ]; then
-          chmod 750 -- "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/snapshot_${CUR_DATE}")"
-          touch -- "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/snapshot_${CUR_DATE}")"
+          chmod 750 -- "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "snapshot_${CUR_DATE}")"
+          touch -- "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "snapshot_${CUR_DATE}")"
         fi
       else
         echo "ERROR: rsync failed" >&2
@@ -414,11 +406,10 @@ remote_init()
     fi
 
     # Create remote directory 
-    ENCODED_SUB_PATH="$(encode_path "$SOURCE_DIR" "$SUB_DIR")"
-    if [ -d "$SSHFS_MOUNT_PATH/$ENCODED_SUB_PATH" ]; then
+    if [ -d "$SSHFS_MOUNT_PATH/$SUB_DIR" ]; then
       echo "WARNING: Remote directory \"(${SSHFS_MOUNT_PATH}/)$SUB_DIR\" already exists!" >&2
-    elif ! mkdir -p -- "$SSHFS_MOUNT_PATH/$ENCODED_SUB_PATH"; then
-      echo "ERROR: Unable to create remote target directory \"(${SSHFS_MOUNT_PATH}/)${ENCODED_SUB_PATH}\"!" >&2
+    elif ! mkdir -p -- "$SSHFS_MOUNT_PATH/$SUB_DIR"; then
+      echo "ERROR: Unable to create remote target directory \"(${SSHFS_MOUNT_PATH}/)$SUB_DIR}\"!" >&2
       RET=1
       continue;
     fi
@@ -483,7 +474,7 @@ show_help()
   echo "--test|--dry-run            - Only show what would be performed (test run)" >&2
   echo "--background                - Background daemon mode" >&2
   echo "--foreground                - Foreground daemon mode" >&2
-  echo "--mount                     - Mount remote sshfs/encfs filesystem" >&2
+  echo "--mount={remote_dir}        - Mount remote sshfs/encfs filesystem" >&2
   echo "--umount                    - Umount remote sshfs/encfs filesystem" >&2
   echo "--conf|-c={config_file}     - Specify alternate configuration file (default=~/.psnapshot.conf)" >&2
   echo "--cipher={cipher}           - Specify SSH cipher (default=arcfour)" >&2
@@ -553,7 +544,7 @@ process_commandline()
   # Set environment variables to default
   DRY_RUN=0
   INIT=0
-  MOUNT=0
+  MOUNT=""
   UMOUNT=0
   BACKGROUND=0
   FOREGROUND=0
@@ -570,7 +561,7 @@ process_commandline()
               --conf|-c) CONF_FILE="$ARGVAL";;
                --cipher) SSH_CIPHER="$ARGVAL";;
        --dry-run|--test) DRY_RUN=1;;
-                --mount) MOUNT=1;;
+                --mount) MOUNT="$ARGVAL";;
         --background|-b) BACKGROUND=1;;
            --foreground) FOREGROUND=1;;
                --decode) DECODE=1;;
@@ -652,11 +643,11 @@ fi
 
 if [ $INIT -eq 1 ]; then
   remote_init
-elif [ $MOUNT -eq 1 ]; then
-  echo "* Mounting remote SSHFS/ENCFS filesystem \"${USER_AND_SERVER}:${TARGET_PATH}\" on \"$ENCFS_MOUNT_PATH\" (via \"$SSHFS_MOUNT_PATH\")"
+elif [ -n "$MOUNT" ]; then
+  echo "* Mounting remote SSHFS/ENCFS filesystem \"${USER_AND_SERVER}:${TARGET_PATH}\" on \"$ENCFS_MOUNT_PATH/$MOUNT\" (via \"$SSHFS_MOUNT_PATH/$MOUNT\")"
 
   umount_remote_encfs 2>/dev/null
-  if mount_remote_encfs; then
+  if mount_remote_encfs "$MOUNT"; then
     echo "* Done"
     echo ""
   else
@@ -694,15 +685,3 @@ else
     backup
   fi
 fi
-
-# TODO: Parse log file and/or show changes with decoded names
-# TODO: Cleanup old backups
-# CTRL-C handler?
-
-# TODO: move target directory creation to --init ?
-# FIXME: detect empty mount point / wrong key
-# TODO: On init detect non-empty remote folder
-# TODO: ls remote after init?
-
-# TODO: Locking
-# TODO: Error mailing
