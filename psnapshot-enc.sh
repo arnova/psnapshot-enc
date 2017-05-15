@@ -1,6 +1,6 @@
 #!/bin/sh
 
-MY_VERSION="0.26-BETA"
+MY_VERSION="0.27-BETA"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
 # Last update: May 15, 2017
@@ -198,11 +198,11 @@ backup()
       continue;
     fi
 
-    # Create remote directory 
+    # Check remote base directory
     ENCODED_SUB_PATH="$(encode_path "$SOURCE_DIR" "$SUB_DIR")"
-    if ! mkdir -p -- "$SSHFS_MOUNT_PATH/$ENCODED_SUB_PATH"; then
-      echo "ERROR: Unable to create remote target directory \"${SSHFS_MOUNT_PATH}/${ENCODED_SUB_PATH}\". Aborting backup for $SOURCE_DIR!" >&2
-      echo "ERROR: Unable to create remote target directory \"${SSHFS_MOUNT_PATH}/${ENCODED_SUB_PATH}\". Aborting backup for $SOURCE_DIR!" |tee -a "$LOG_FILE"
+    if [ ! -d "$SSHFS_MOUNT_PATH/$ENCODED_SUB_PATH" ]; then
+      echo "ERROR: Remote directory \"(${SSHFS_MOUNT_PATH}/)$SUB_DIR\" does not exist (yet)! You probably need to initialise (--init) first. Aborting backup for $SOURCE_DIR!" >&2
+      echo "ERROR: Remote directory \"(${SSHFS_MOUNT_PATH}/)$SUB_DIR\" does not exist (yet)! You probably need to initialise (--init) first. Aborting backup for $SOURCE_DIR!" |tee -a "$LOG_FILE"
       RET=1
       continue;
     fi
@@ -365,6 +365,61 @@ backup()
   done
 
   return $RET
+}
+
+
+remote_init()
+{
+  local RET=0
+
+  umount_encfs 2>/dev/null
+
+  echo "* Using ENCFS6 config file: $ENCFS_CONF_FILE"
+  if mount_rev_encfs; then
+    echo "* Done. Don't forget to backup your config file ($ENCFS_CONF_FILE)!"
+    echo ""
+    echo "You should now probably generate + setup SSH keys (if not done already)"
+  else
+    echo "ERROR: Init failed. Please investigate!" >&2
+  fi
+
+  echo ""
+  umount_encfs;
+
+  IFS=' '
+  for ITEM in $BACKUP_DIRS; do
+    # Determine folder name to use on target
+    if echo "$ITEM" |grep -q ':'; then
+      SUB_DIR="$(echo "$ITEM" |cut -f2 -d':')"
+      SOURCE_DIR="$(echo "$ITEM" |cut -f1 -d':')"
+    else
+      # No sub dir specified, use basename
+#      SUB_DIR="$(echo "$ITEM" |tr / _)"
+      SUB_DIR="$(basename "$ITEM")"
+      SOURCE_DIR="$ITEM"
+    fi
+
+    umount_remote_sshfs 2>/dev/null # First unmount
+    if ! mount_remote_sshfs; then
+      echo "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}\" on \"$SSHFS_MOUNT_PATH\" failed!" >&2
+      RET=1
+      continue;
+    fi
+
+    # Create remote directory 
+    ENCODED_SUB_PATH="$(encode_path "$SOURCE_DIR" "$SUB_DIR")"
+    if [ -d "$SSHFS_MOUNT_PATH/$ENCODED_SUB_PATH" ]; then
+      echo "WARNING: Remote directory \"(${SSHFS_MOUNT_PATH}/)$SUB_DIR\" already exists!" >&2
+    elif ! mkdir -p -- "$SSHFS_MOUNT_PATH/$ENCODED_SUB_PATH"; then
+      echo "ERROR: Unable to create remote target directory \"(${SSHFS_MOUNT_PATH}/)${ENCODED_SUB_PATH}\"!" >&2
+      RET=1
+      continue;
+    fi
+
+    umount_remote_sshfs
+  done
+
+  return RET
 }
 
 
@@ -589,19 +644,7 @@ if [ -z "$MAIL_TO" ]; then
 fi
 
 if [ $INIT -eq 1 ]; then
-  umount_encfs 2>/dev/null
-
-  echo "* Using ENCFS6 config file: $ENCFS_CONF_FILE"
-  if mount_rev_encfs; then
-    echo "* Done. Don't forget to backup your config file ($ENCFS_CONF_FILE)!"
-    echo ""
-    echo "You should now probably generate + setup SSH keys (if not done already)"
-  else
-    echo "ERROR: Init failed. Please investigate!" >&2
-  fi
-
-  echo ""
-  umount_encfs;
+  remote_init
 elif [ $MOUNT -eq 1 ]; then
   echo "* Mounting remote SSHFS/ENCFS filesystem \"${USER_AND_SERVER}:${TARGET_PATH}\" on \"$ENCFS_MOUNT_PATH\" (via \"$SSHFS_MOUNT_PATH\")"
 
