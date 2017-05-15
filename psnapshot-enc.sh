@@ -201,8 +201,8 @@ backup()
     # Check remote base directory
     ENCODED_SUB_PATH="$(encode_path "$SOURCE_DIR" "$SUB_DIR")"
     if [ ! -d "$SSHFS_MOUNT_PATH/$ENCODED_SUB_PATH" ]; then
-      echo "ERROR: Remote directory \"(${SSHFS_MOUNT_PATH}/)$SUB_DIR\" does not exist (yet)! You probably need to initialise (--init) first. Aborting backup for $SOURCE_DIR!" >&2
-      echo "ERROR: Remote directory \"(${SSHFS_MOUNT_PATH}/)$SUB_DIR\" does not exist (yet)! You probably need to initialise (--init) first. Aborting backup for $SOURCE_DIR!" |tee -a "$LOG_FILE"
+      echo "ERROR: Remote directory \"$SUB_DIR\" does not exist (yet)! You probably need to initialise (--init) first. Aborting backup for $SOURCE_DIR!" >&2
+      echo "ERROR: Remote directory \"$SUB_DIR\" does not exist (yet)! You probably need to initialise (--init) first. Aborting backup for $SOURCE_DIR!" |tee -a "$LOG_FILE"
       RET=1
       continue;
     fi
@@ -340,13 +340,13 @@ backup()
         # Update timestamp on base folder:
         if [ $FOUND_CURRENT -ne 1 ]; then
           # Rename .sync to current date-snapshot
-          echo "* Renaming \"${SSHFS_MOUNT_PATH}/${SUB_DIR}/.sync\" to \"${SSHFS_MOUNT_PATH}/${SUB_DIR}/snapshot_${CUR_DATE}\"" |tee -a "$LOG_FILE"
+          echo "* Renaming \"${SUB_DIR}/.sync\" to \"${SUB_DIR}/snapshot_${CUR_DATE}\"" |tee -a "$LOG_FILE"
           if [ $DRY_RUN -eq 0 ]; then
             mv -- "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/.sync")" "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/snapshot_$CUR_DATE")"
           fi
         fi
 
-        echo "* Setting permissions 750 for \"$SSHFS_MOUNT_PATH/$SUB_DIR/snapshot_${CUR_DATE}\"" |tee -a "$LOG_FILE"
+        echo "* Setting permissions 750 for \"$SUB_DIR/snapshot_${CUR_DATE}\"" |tee -a "$LOG_FILE"
         if [ $DRY_RUN -eq 0 ]; then
           chmod 750 -- "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/snapshot_${CUR_DATE}")"
           touch -- "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "$SUB_DIR/snapshot_${CUR_DATE}")"
