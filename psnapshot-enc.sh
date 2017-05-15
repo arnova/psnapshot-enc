@@ -176,7 +176,7 @@ backup()
     fi
 
     DATE=`LC_ALL=C date +'%b %d %H:%M:%S'`
-    echo "* $DATE: Checking $SOURCE_DIR..." |tee -a "$LOG_FILE"
+    echo "* $DATE: Inspecting $SOURCE_DIR..." |tee -a "$LOG_FILE"
 
     # Reverse encode local path
     if [ "$ENCFS_ENABLE" != "0" ]; then
@@ -207,8 +207,6 @@ backup()
       continue;
     fi
 
-    # First check whether there are any changes
-    echo "* Checking for changes in $SOURCE_DIR..." |tee -a "$LOG_FILE"
 
     # Look for already existing snapshot directories
     FOUND_SYNC=0
@@ -245,7 +243,7 @@ backup()
     done
 
     # Construct rsync line depending on the info we just retrieved
-    RSYNC_LINE="-rtlx --chmod=750 --safe-links --fuzzy --delete --delete-after --delete-excluded --log-format='%o: %n%L' -e 'ssh -q -c $SSH_CIPHER'"
+    RSYNC_LINE="-rtlx --safe-links --fuzzy --delete --delete-after --delete-excluded --log-format='%o: %n%L' -e 'ssh -q -c $SSH_CIPHER'"
 
     LIMIT=0
     if [ -n "$LIMIT_KB" ]; then
@@ -370,6 +368,7 @@ backup()
     fi
 
     umount_remote_sshfs;
+    echo "******************************************************************************"
   done
 
   return $RET
