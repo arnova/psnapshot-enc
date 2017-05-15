@@ -215,22 +215,30 @@ backup()
     FOUND_CURRENT=0
     LAST_SNAPSHOT_ENC=""
 
-    # TODO: Instead of using stat, check the actual folder-name (just remove the xargs stat?)
+    # First get a list of all the snapshot folders
+    DIR_LIST=""
     IFS=$EOL
-    for ITEM in `find "$SSHFS_MOUNT_PATH/$ENCODED_SUB_PATH/" -maxdepth 1 -mindepth 1 -type d -print0 |xargs -r0 stat -c "%Y${TAB}%n" |sort -r |head -n3`; do
-      NAME="$(basename "$(echo "$ITEM" |cut -f2)")"
+    for ITEM in `find "$SSHFS_MOUNT_PATH/$ENCODED_SUB_PATH/" -maxdepth 1 -mindepth 1 -type d`; do
+      NAME="$(basename "$ITEM")"
       DECODED_NAME="$(decode_path "$SOURCE_DIR" "$NAME")"
+      DIR_LIST="$DECODED_NAME $NAME\n$DIR_LIST"
+    done
+
+    IFS=$EOL
+    for ITEM in `echo "$DIR_LIST" |sort -r |head -n3`; do
+      DECODED_NAME="$(echo "$ITEM" |cut -d' ' -f1)"
+      ENCODED_NAME="$(echo "$ITEM" |cut -d' ' -f2)"
 
       case $DECODED_NAME in
         .sync              ) FOUND_SYNC=1
-                             echo "* .sync folder found" |tee -a "$LOG_FILE"
+                             echo "* .sync ($ENCODED_NAME) folder found" |tee -a "$LOG_FILE"
                              ;;
         snapshot_$CUR_DATE ) FOUND_CURRENT=1
-                             echo "* $DECODED_NAME (current date) folder found" |tee -a "$LOG_FILE"
+                             echo "* $DECODED_NAME ($ENCODED_NAME) current date folder found" |tee -a "$LOG_FILE"
                              ;;
         snapshot_*         ) if [ -z "$LAST_SNAPSHOT_ENC" ]; then
-                               LAST_SNAPSHOT_ENC="$NAME" # Use last snapshot as base
-                               echo "* $DECODED_NAME (previous date) folder found" |tee -a "$LOG_FILE"
+                               LAST_SNAPSHOT_ENC="$ENCODED_NAME" # Use last snapshot as base
+                               echo "* $DECODED_NAME ($ENCODED_NAME) previous date folder found" |tee -a "$LOG_FILE"
                              fi
                              ;;
       esac
