@@ -1,9 +1,9 @@
 #!/bin/sh
 
-MY_VERSION="0.25-BETA"
+MY_VERSION="0.26-BETA"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
-# Last update: May 14, 2017
+# Last update: May 15, 2017
 # (C) Copyright 2014-2017 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
@@ -169,7 +169,9 @@ backup()
       SUB_DIR="$(echo "$ITEM" |cut -f2 -d':')"
       SOURCE_DIR="$(echo "$ITEM" |cut -f1 -d':')"
     else
-      SUB_DIR="$(echo "$ITEM" |tr / _)"
+      # No sub dir specified, use basename
+#      SUB_DIR="$(echo "$ITEM" |tr / _)"
+      SUB_DIR="$(basename "$ITEM")"
       SOURCE_DIR="$ITEM"
     fi
 
