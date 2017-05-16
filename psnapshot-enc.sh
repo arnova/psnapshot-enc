@@ -358,20 +358,22 @@ backup()
       echo ""
 
       if [ $retval -eq 0 ]; then
-        if [ $FOUND_CURRENT -ne 1 ]; then
-          # Rename .sync to current date-snapshot
-          echo "* Renaming \"${SUB_DIR}/.sync\" to \"${SUB_DIR}/snapshot_${CUR_DATE}\"" |tee -a "$LOG_FILE"
-          if [ $DRY_RUN -eq 0 ]; then
-            mv -- "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" ".sync")" "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" "snapshot_${CUR_DATE}")"
+        if [ $NO_ROTATE -eq 0 ]; then
+          if [ $FOUND_CURRENT -ne 1 ]; then
+            # Rename .sync to current date-snapshot
+            echo "* Renaming \"${SUB_DIR}/.sync\" to \"${SUB_DIR}/snapshot_${CUR_DATE}\"" |tee -a "$LOG_FILE"
+            if [ $DRY_RUN -eq 0 ]; then
+              mv -- "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" ".sync")" "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" "snapshot_${CUR_DATE}")"
+            fi
           fi
-        fi
 
-        echo "* Setting permissions 750 for \"$SUB_DIR/snapshot_${CUR_DATE}\"" |tee -a "$LOG_FILE"
-        if [ $DRY_RUN -eq 0 ]; then
-          chmod 750 -- "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" "snapshot_${CUR_DATE}")"
+          echo "* Setting permissions 750 for \"$SUB_DIR/snapshot_${CUR_DATE}\"" |tee -a "$LOG_FILE"
+          if [ $DRY_RUN -eq 0 ]; then
+            chmod 750 -- "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" "snapshot_${CUR_DATE}")"
 
-          # Update timestamp on base folder:
-          touch -- "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" "snapshot_${CUR_DATE}")"
+            # Update timestamp on base folder:
+            touch -- "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" "snapshot_${CUR_DATE}")"
+          fi
         fi
       else
         echo "ERROR: rsync failed" >&2
@@ -502,6 +504,7 @@ show_help()
   echo "--help|-h                   - Print this help" >&2
   echo "--init|-i                   - Init encfs (for the first time)" >&2
   echo "--test|--dry-run            - Only show what would be performed (test run)" >&2
+  echo "--norotate                  - Don't rotate .sync to current date folder when done" >&2
   echo "--decode                    - Decode encoded filesnames for display (slower!)" >&2
   echo "--verbose                   - Be verbose with displaying info" >&2
   echo "--background                - Background daemon mode" >&2
@@ -582,6 +585,7 @@ process_commandline()
   FOREGROUND=0
   DECODE=0
   VERBOSE=0
+  NO_ROTATE=0
   CONF_FILE=""
 
   # Check arguments
@@ -612,6 +616,7 @@ process_commandline()
         --background|-b) BACKGROUND=1;;
            --foreground) FOREGROUND=1;;
                --decode) DECODE=1;;
+             --norotate) NO_ROTATE=1;;
               --verbose) VERBOSE=1;;
                --umount) UMOUNT=1;;
               --init|-i) INIT=1;;
