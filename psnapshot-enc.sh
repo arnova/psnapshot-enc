@@ -415,7 +415,7 @@ backup()
 
     DATE=`LC_ALL=C date +'%b %d %H:%M:%S'`
     echo "* $DATE - Finished sync of $SOURCE_DIR" |tee -a "$LOG_FILE"
-    echo "" |tee -a "$LOG_FILE"
+    echo "**************************************************************" |tee -a "$LOG_FILE"
   done
 
   return $RET
