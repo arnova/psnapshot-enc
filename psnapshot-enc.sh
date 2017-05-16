@@ -1,6 +1,6 @@
 #!/bin/sh
 
-MY_VERSION="0.30-BETA"
+MY_VERSION="0.30-BETA2"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
 # Last update: May 15, 2017
@@ -88,7 +88,7 @@ umount_encfs()
 }
 
 
-encode_path()
+encode_item()
 {
   if [ "$ENCFS_ENABLE" != "0" ]; then
     ENCFS6_CONFIG="$ENCFS_CONF_FILE" encfsctl encode --extpass="echo "$ENCFS_PASSWORD"" -- "$1" "$2"
@@ -98,12 +98,34 @@ encode_path()
 }
 
 
-decode_path()
+decode_item()
 {
   if [ "$ENCFS_ENABLE" != "0" ]; then
     ENCFS6_CONFIG="$ENCFS_CONF_FILE" encfsctl decode --extpass="echo "$ENCFS_PASSWORD"" -- "$1" "$2"
   else
     echo "$1"
+  fi
+}
+
+
+rsync_decode_path()
+{
+  local SUB_DIR
+  local FIRST=1
+  local RSYNC_PATH="$(echo "$2" |sed -e 's!^\"!!' -e 's!\"$!!')"
+
+  # Split full path (/ separator)
+  IFS='/'
+  for SUB_DIR in $RSYNC_PATH; do
+    if [ $FIRST -eq 0 ] || echo "$RSYNC_PATH" |grep -q '^/'; then
+      printf "/"
+    fi
+    printf "$(decode_item "$1" "$SUB_DIR")"
+    FIRST=0
+  done
+
+  if echo "$RSYNC_PATH" |grep -q '/$'; then
+    echo "/"
   fi
 }
 
@@ -114,14 +136,16 @@ rsync_parse()
   IFS=$EOL
   while read LINE; do
     case "$LINE" in
-      "send: "*)              echo "send: $(decode_path "$1" $(echo "$LINE" |cut -f1 -d' ' --complement))"
-                              ;;
-      "del.: "*)              echo "del.: $(decode_path "$1" $(echo "$LINE" |cut -f1 -d' ' --complement))"
-                              ;;
-      "created directory "*)  echo "created directory: $(decode_path "$1" $(echo "$LINE" |cut -f1 -d' ' --complement))"
-                              ;;
-      *)                      echo "$LINE"
-                              ;;
+                          "send: "*) echo "send: $(decode_item "$1" $(echo "$LINE" |cut -f1 -d' ' --complement))"
+                                     ;;
+                          "del.: "*) echo "del.: $(decode_item "$1" $(echo "$LINE" |cut -f1 -d' ' --complement))"
+                                     ;;
+      "skipping non-regular file "*) echo "skipping non-regular file $(rsync_decode_path "$1" $(echo "$LINE" |cut -f1,2,3 -d' ' --complement))"
+                                     ;;
+              "created directory "*) echo "created directory: $(decode_item "$1" $(echo "$LINE" |cut -f1,2 -d' ' --complement))"
+                                     ;;
+                                  *) echo "$LINE"
+                                     ;;
     esac
   done
 }
@@ -208,7 +232,7 @@ backup()
     IFS=$EOL
     for ITEM in `find "$SSHFS_MOUNT_PATH/" -maxdepth 1 -mindepth 1 -type d`; do
       NAME="$(basename "$ITEM")"
-      DECODED_NAME="$(decode_path "$SOURCE_DIR" "$NAME")"
+      DECODED_NAME="$(decode_item "$SOURCE_DIR" "$NAME")"
       DIR_LIST="$DECODED_NAME $NAME\n$DIR_LIST"
     done
 
@@ -232,9 +256,8 @@ backup()
       esac
     done
 
-
-
     # Construct rsync line depending on the info we just retrieved
+    # NOTE: We use rsync over ssh directly (without sshfs) as this is much faster
     RSYNC_LINE="-rtlx --safe-links --fuzzy --delete --delete-after --delete-excluded --log-format='%o: %n%L' -e 'ssh -q -c $SSH_CIPHER'"
 
     LIMIT=0
@@ -263,7 +286,7 @@ backup()
     if [ -n "$EXCLUDE_DIRS" ]; then
       IFS=' '
       for EXDIR in $EXCLUDE_DIRS; do
-        RSYNC_LINE="$RSYNC_LINE --exclude $(encode_path "$SOURCE_DIR" "$EXDIR")/"
+        RSYNC_LINE="$RSYNC_LINE --exclude $(encode_item "$SOURCE_DIR" "$EXDIR")/"
       done
     fi
 
@@ -282,7 +305,7 @@ backup()
     else
       SNAPSHOT_DIR=".sync"
     fi
-    RSYNC_LINE="$RSYNC_LINE -- "${USER_AND_SERVER}:\"${TARGET_PATH}/$SUB_DIR/$(encode_path "$SOURCE_DIR" "$SNAPSHOT_DIR")/\"""
+    RSYNC_LINE="$RSYNC_LINE -- "${USER_AND_SERVER}:\"${TARGET_PATH}/$SUB_DIR/$(encode_item "$SOURCE_DIR" "$SNAPSHOT_DIR")/\"""
 
     if [ -n "$EXCLUDE_DIRS" ]; then
       echo "* Excluding folders: $EXCLUDE_DIRS" |tee -a "$LOG_FILE"
@@ -291,26 +314,28 @@ backup()
 
     echo "* Looking for changes..." |tee -a "$LOG_FILE"
 
+    if [ $VERBOSE -eq 1 ]; then
+      echo "-> rsync -i --dry-run $RSYNC_LINE" |tee -a "$LOG_FILE"
+    fi
+
     # Need to unset IFS for commandline parse to work properly
     unset IFS
-    # NOTE: Ignore root (eg. permission) changes with ' ./$'
-    # NOTE: We use rsync over ssh directly (without sshfs) as this is much faster
-    # TODO: Can we optimise this by aborting on the first change?:
-    echo "-> rsync -i --dry-run $RSYNC_LINE" |tee -a "$LOG_FILE"
     result="$(eval rsync -i --dry-run $RSYNC_LINE)"
     retval=$?
-    change_count="$(echo "$result" |grep -v ' ./$' |wc -l)"
+
+    # NOTE: Ignore root (eg. permission) changes with ' ./$' and non-regular files
+    change_count="$(echo "$result" |grep -v -e ' ./$' -e '^skipping non-regular file' |wc -l)"
 
     if [ $retval -ne 0 ]; then
       echo "ERROR: rsync failed ($retval)" >&2
       echo "ERROR: rsync failed ($retval)" |tee -a "$LOG_FILE"
       RET=1
     elif [ $change_count -gt 0 ]; then
-      echo "* $change_count changes detected -> syncing remote..." |tee -a "$LOG_FILE"
+      echo "* $change_count change(s) detected -> syncing remote..." |tee -a "$LOG_FILE"
 
       RSYNC_LINE="-v --log-file="$LOG_FILE" $RSYNC_LINE"
 
-      if [ "$VERBOSE" = "1" ]; then
+      if [ $VERBOSE -eq 1 ]; then
         RSYNC_LINE="--progress $RSYNC_LINE"
       fi
 
@@ -318,7 +343,9 @@ backup()
         RSYNC_LINE="--dry-run $RSYNC_LINE"
       fi
 
-      echo "-> rsync $RSYNC_LINE" |tee -a "$LOG_FILE"
+      if [ $VERBOSE -eq 1 ]; then
+        echo "-> rsync $RSYNC_LINE" |tee -a "$LOG_FILE"
+      fi
 
       if [ $DECODE -eq 0 ]; then
         eval rsync $RSYNC_LINE 2>&1
@@ -328,20 +355,23 @@ backup()
         retval=$?
       fi
 
+      echo ""
+
       if [ $retval -eq 0 ]; then
-        # Update timestamp on base folder:
         if [ $FOUND_CURRENT -ne 1 ]; then
           # Rename .sync to current date-snapshot
           echo "* Renaming \"${SUB_DIR}/.sync\" to \"${SUB_DIR}/snapshot_${CUR_DATE}\"" |tee -a "$LOG_FILE"
           if [ $DRY_RUN -eq 0 ]; then
-            mv -- "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" ".sync")" "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "snapshot_${CUR_DATE}")"
+            mv -- "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" ".sync")" "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" "snapshot_${CUR_DATE}")"
           fi
         fi
 
         echo "* Setting permissions 750 for \"$SUB_DIR/snapshot_${CUR_DATE}\"" |tee -a "$LOG_FILE"
         if [ $DRY_RUN -eq 0 ]; then
-          chmod 750 -- "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "snapshot_${CUR_DATE}")"
-          touch -- "$SSHFS_MOUNT_PATH/$(encode_path "$SOURCE_DIR" "snapshot_${CUR_DATE}")"
+          chmod 750 -- "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" "snapshot_${CUR_DATE}")"
+
+          # Update timestamp on base folder:
+          touch -- "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" "snapshot_${CUR_DATE}")"
         fi
       else
         echo "ERROR: rsync failed" >&2
@@ -472,6 +502,8 @@ show_help()
   echo "--help|-h                   - Print this help" >&2
   echo "--init|-i                   - Init encfs (for the first time)" >&2
   echo "--test|--dry-run            - Only show what would be performed (test run)" >&2
+  echo "--decode                    - Decode encoded filesnames for display (slower!)" >&2
+  echo "--verbose                   - Be verbose with displaying info" >&2
   echo "--background                - Background daemon mode" >&2
   echo "--foreground                - Foreground daemon mode" >&2
   echo "--mount={remote_dir}        - Mount remote sshfs/encfs filesystem" >&2
@@ -549,40 +581,71 @@ process_commandline()
   BACKGROUND=0
   FOREGROUND=0
   DECODE=0
+  VERBOSE=0
   CONF_FILE=""
 
   # Check arguments
-  unset IFS
-  for arg in $*; do
-    ARGNAME=`echo "$arg" |cut -d= -f1`
-    ARGVAL=`echo "$arg" |cut -d= -f2 -s`
+  while [ -n "$1" ]; do
+    ARG="$1"
+    ARGNAME=`echo "$ARG" |cut -d= -f1`
+    ARGVAL=`echo "$ARG" |cut -d= -f2 -s`
 
     case "$ARGNAME" in
-              --conf|-c) CONF_FILE="$ARGVAL";;
-               --cipher) SSH_CIPHER="$ARGVAL";;
+              --conf|-c) if [ -z "$ARGVAL" ]; then
+                           echo "ERROR: Bad command syntax with argument \"$ARG\"" >&2
+                           show_help
+                           exit 1
+                         else
+                           CONF_FILE="$ARGVAL"
+                         fi
+                         ;;
+               --cipher) if [ -z "$ARGVAL" ]; then
+                           echo "ERROR: Bad command syntax with argument \"$ARG\"" >&2
+                           show_help
+                           exit 1
+                         else
+                           SSH_CIPHER="$ARGVAL"
+                         fi
+                         ;;
        --dry-run|--test) DRY_RUN=1;;
                 --mount) MOUNT="$ARGVAL";;
         --background|-b) BACKGROUND=1;;
            --foreground) FOREGROUND=1;;
                --decode) DECODE=1;;
+              --verbose) VERBOSE=1;;
                --umount) UMOUNT=1;;
               --init|-i) INIT=1;;
               --help|-h) show_help;
                          exit 0
                          ;;
-                     -*) echo "ERROR: Bad argument \"$arg\"" >&2
-                         show_help;
-                         exit 1;
+                     --) shift
+                         # Check for remaining arguments
+                         if [ -n "$*" ]; then
+                           if [ -z "$CONF_FILE" ]; then
+                             CONF_FILE="$*"
+                           else
+                             echo "ERROR: Bad command syntax with argument \"$*\"" >&2
+                             show_help
+                             exit 1
+                           fi
+                         fi
+                         break # We're done
+                         ;;
+                     -*) echo "ERROR: Bad argument \"$ARG\"" >&2
+                         show_help
+                         exit 1
                          ;;
                       *) if [ -z "$CONF_FILE" ]; then
-                           CONF_FILE="$arg"
+                           CONF_FILE="$ARG"
                          else
-                           echo "ERROR: Bad command syntax with argument \"$arg\"" >&2
-                           show_help;
-                           exit 1;
+                           echo "ERROR: Bad command syntax with argument \"$ARG\"" >&2
+                           show_help
+                           exit 1
                          fi
                          ;;
     esac
+
+    shift # Next argument
   done
 
   if [ -z "$CONF_FILE" ]; then
