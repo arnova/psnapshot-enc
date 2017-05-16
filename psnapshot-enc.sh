@@ -1,6 +1,6 @@
 #!/bin/sh
 
-MY_VERSION="0.30-BETA3"
+MY_VERSION="0.30-BETA4"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
 # Last update: May 16, 2017
@@ -295,21 +295,21 @@ backup()
       RSYNC_LINE="$RSYNC_LINE --bwlimit=$LIMIT_KB"
     fi
 
-    if [ -n "$EXCLUDE_DIRS" ]; then
+    if [ -n "$EXCLUDE" ]; then
       IFS=' '
-      for EXDIR in $EXCLUDE_DIRS; do
-        RSYNC_LINE="$RSYNC_LINE --exclude $(encode_item "$SOURCE_DIR" "$EXDIR")/"
+      for EX in $EXCLUDE; do
+        RSYNC_LINE="$RSYNC_LINE --exclude \"$(encode_item "$SOURCE_DIR" "$EX")\""
       done
     fi
 
     if [ -n "$LAST_SNAPSHOT_ENC" ]; then
-      RSYNC_LINE="$RSYNC_LINE --link-dest=../$LAST_SNAPSHOT_ENC"
+      RSYNC_LINE="$RSYNC_LINE --link-dest=\"../$LAST_SNAPSHOT_ENC\""
     fi
 
     if [ "$ENCFS_ENABLE" != "0" ]; then
-      RSYNC_LINE="$RSYNC_LINE "$ENCFS_MOUNT_PATH/""
+      RSYNC_LINE="$RSYNC_LINE $ENCFS_MOUNT_PATH/"
     else
-      RSYNC_LINE="$RSYNC_LINE "$SOURCE_DIR/""
+      RSYNC_LINE="$RSYNC_LINE $SOURCE_DIR/"
     fi
 
     if [ $FOUND_CURRENT -eq 1 ]; then
@@ -319,8 +319,8 @@ backup()
     fi
     RSYNC_LINE="$RSYNC_LINE -- "${USER_AND_SERVER}:\"${TARGET_PATH}/$SUB_DIR/$(encode_item "$SOURCE_DIR" "$SNAPSHOT_DIR")/\"""
 
-    if [ -n "$EXCLUDE_DIRS" ]; then
-      echo "* Excluding folders: $EXCLUDE_DIRS" |tee -a "$LOG_FILE"
+    if [ -n "$EXCLUDE" ]; then
+      echo "* Exclude(s): $EXCLUDE" |tee -a "$LOG_FILE"
     fi
 #        echo "-> $RSYNC_LINE"
 
