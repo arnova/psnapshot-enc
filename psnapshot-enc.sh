@@ -1,9 +1,9 @@
 #!/bin/sh
 
-MY_VERSION="0.30-BETA2"
+MY_VERSION="0.30-BETA3"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
-# Last update: May 15, 2017
+# Last update: May 16, 2017
 # (C) Copyright 2014-2017 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
@@ -212,7 +212,7 @@ backup()
     fi
 
     DATE=`LC_ALL=C date +'%b %d %H:%M:%S'`
-    echo "* $DATE: Inspecting $SOURCE_DIR..." |tee -a "$LOG_FILE"
+    echo "* $DATE - Inspecting $SOURCE_DIR" |tee -a "$LOG_FILE"
 
     # Reverse encode local path
     if [ "$ENCFS_ENABLE" != "0" ]; then
@@ -343,7 +343,7 @@ backup()
       echo "ERROR: rsync failed ($retval)" |tee -a "$LOG_FILE"
       RET=1
     elif [ $change_count -gt 0 ]; then
-      echo "* $change_count change(s) detected -> syncing remote..." |tee -a "$LOG_FILE"
+      echo "* $change_count change(s) detected -> syncing to remote..." |tee -a "$LOG_FILE"
 
       RSYNC_LINE="-v --log-file="$LOG_FILE" $RSYNC_LINE"
 
@@ -386,6 +386,14 @@ backup()
             # Update timestamp on base folder:
             touch -- "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" "snapshot_${CUR_DATE}")"
           fi
+        else
+          echo "* Setting permissions 750 for \"$SUB_DIR/.sync\"" |tee -a "$LOG_FILE"
+          if [ $DRY_RUN -eq 0 ]; then
+            chmod 750 -- "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" ".sync")"
+
+            # Update timestamp on base folder:
+            touch -- "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" ".sync")"
+          fi
         fi
       else
         echo "ERROR: rsync failed" >&2
@@ -404,7 +412,10 @@ backup()
     fi
 
     umount_remote_sshfs;
-    echo "******************************************************************************"
+
+    DATE=`LC_ALL=C date +'%b %d %H:%M:%S'`
+    echo "* $DATE - Finished sync of $SOURCE_DIR" |tee -a "$LOG_FILE"
+    echo "" |tee -a "$LOG_FILE"
   done
 
   return $RET
@@ -482,6 +493,47 @@ backup_bg_process()
 }
 
 
+view_log_file()
+{
+  local LOG_FILE="$1"
+  local SOURCE_DIR
+
+  echo "Viewing log file \"$LOG_FILE\":"
+
+  if [ ! -f "$LOG_FILE" ]; then
+    echo "ERROR: Log file \"$LOG_FILE\" not found!"
+    exit 1
+  fi
+
+  IFS=$EOL
+  while read LINE; do
+    # Detect rsync log line:
+    if echo "$LINE" |grep -E -q '\[[0-9]+\]'; then
+      LINE_STRIPPED="$(echo "$LINE" |cut -d' ' -f1,2,3 --complement)"
+
+      # Now the first item is the rsync code
+      ITEM_CHANGE_CHECK="$(echo "$LINE_STRIPPED" |cut -d' ' -f1)"
+
+      # Simple check to determine whether this is an itemized list of changes
+      if [ -n "$SOURCE_DIR" ] && echo "$ITEM_CHANGE_CHECK" |grep -E -q '^[c<\.][fdL][\.\+\?cst]+'; then
+        printf "$(echo "$LINE" |cut -d' ' -f1,2,3,4) "
+        echo "$(rsync_decode_path "$SOURCE_DIR" $(echo "$LINE_STRIPPED" |cut -d' ' -f1 --complement))"
+      else
+        # Just print the line
+        echo "$LINE"
+      fi
+    else
+      # Get SOURCE_DIR from log
+      if echo "$LINE" |grep -E -q '^\* .* Inspecting '; then
+        SOURCE_DIR="$(echo "$LINE" |sed -e 's!^\*.*Inspecting !!' -e 's!\.*$!!')"
+      fi
+
+      echo "$LINE"
+    fi
+  done < "$LOG_FILE"
+}
+
+
 # Read password from stdin but disable echo of it
 read_stdin_password()
 {
@@ -523,6 +575,7 @@ show_help()
   echo "--foreground                - Foreground daemon mode" >&2
   echo "--mount={remote_dir}        - Mount remote sshfs/encfs filesystem" >&2
   echo "--umount                    - Umount remote sshfs/encfs filesystem" >&2
+  echo "--logview={log_file}        - View (decoded) log file" >&2
   echo "--conf|-c={config_file}     - Specify alternate configuration file (default=~/.psnapshot.conf)" >&2
   echo "--cipher={cipher}           - Specify SSH cipher (default=arcfour)" >&2
   echo ""
@@ -598,6 +651,7 @@ process_commandline()
   DECODE=0
   VERBOSE=0
   NO_ROTATE=0
+  LOG_VIEW=""
   CONF_FILE=""
 
   # Check arguments
@@ -621,6 +675,14 @@ process_commandline()
                            exit 1
                          else
                            SSH_CIPHER="$ARGVAL"
+                         fi
+                         ;;
+              --logview) if [ -z "$ARGVAL" ]; then
+                           echo "ERROR: Bad command syntax with argument \"$ARG\"" >&2
+                           show_help
+                           exit 1
+                         else
+                           LOG_VIEW="$ARGVAL"
                          fi
                          ;;
        --dry-run|--test) DRY_RUN=1;;
@@ -721,7 +783,9 @@ if [ -z "$MAIL_TO" ]; then
   MAIL_TO="root"
 fi
 
-if [ $INIT -eq 1 ]; then
+if [ -n "$LOG_VIEW" ]; then
+  view_log_file "$LOG_VIEW"
+elif [ $INIT -eq 1 ]; then
   remote_init
 elif [ -n "$MOUNT" ]; then
   echo "* Mounting remote SSHFS/ENCFS filesystem \"${USER_AND_SERVER}:${TARGET_PATH}\" on \"$ENCFS_MOUNT_PATH/$MOUNT\" (via \"$SSHFS_MOUNT_PATH/$MOUNT\")"
@@ -732,6 +796,7 @@ elif [ -n "$MOUNT" ]; then
     echo ""
   else
     echo "ERROR: Mount failed. Please investigate!" >&2
+    exit 1
   fi
 elif [ $UMOUNT -eq 1 ]; then
   umount_remote_encfs;
@@ -765,3 +830,5 @@ else
     backup
   fi
 fi
+
+exit 0
