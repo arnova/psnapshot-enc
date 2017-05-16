@@ -90,21 +90,33 @@ umount_encfs()
 
 encode_item()
 {
-  if [ "$ENCFS_ENABLE" != "0" ]; then
-    ENCFS6_CONFIG="$ENCFS_CONF_FILE" encfsctl encode --extpass="echo "$ENCFS_PASSWORD"" -- "$1" "$2"
-  else
-    echo "$1"
+  local result
+
+  if [ "$ENCFS_ENABLE" != "0" -a -n "$2" ]; then
+    result=`ENCFS6_CONFIG="$ENCFS_CONF_FILE" encfsctl encode --extpass="echo "$ENCFS_PASSWORD"" -- "$1" "$2"`
+    if [ -n "$result" ]; then
+      echo "$result"
+      return
+    fi
   fi
+
+  echo "$2"
 }
 
 
 decode_item()
 {
-  if [ "$ENCFS_ENABLE" != "0" ]; then
-    ENCFS6_CONFIG="$ENCFS_CONF_FILE" encfsctl decode --extpass="echo "$ENCFS_PASSWORD"" -- "$1" "$2"
-  else
-    echo "$1"
+  local result
+
+  if [ "$ENCFS_ENABLE" != "0" -a -n "$2" ]; then
+    result=`ENCFS6_CONFIG="$ENCFS_CONF_FILE" encfsctl decode --extpass="echo "$ENCFS_PASSWORD"" -- "$1" "$2"`
+    if [ -n "$result" ]; then
+      echo "$result"
+      return
+    fi
   fi
+
+  echo "$2"
 }
 
 
