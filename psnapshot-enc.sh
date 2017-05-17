@@ -927,10 +927,8 @@ else
     trap - INT TERM EXIT
   else
     echo "Failed to acquire lockfile: $LOCK_FILE" >&2
-    PID="$(cat $LOCK_FILE)"
-    echo "Held by $PID:" >&2
-    # FIXME: We should check what busybox ps supports
-    ps -e -o "%p %u %c %a" |grep -E "^[[:blank:]]$PID[[:blank:]]" >&2
+    echo "Held by $(cat $LOCK_FILE)" >&2
+
     exit 1
   fi
 fi
