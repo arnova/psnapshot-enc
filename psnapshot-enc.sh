@@ -1,6 +1,6 @@
 #!/bin/sh
 
-MY_VERSION="0.30-BETA6"
+MY_VERSION="0.30-BETA7"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
 # Last update: May 17, 2017
@@ -30,6 +30,7 @@ ENCFS_CONF_FILE="$HOME/.encfs6.xml"
 SLEEP_TIME=900
 ENCFS_MOUNT_PATH="/mnt/encfs"
 SSHFS_MOUNT_PATH="/mnt/sshfs"
+LOCK_FILE="/tmp/.psnapshot-enc.lock"
 
 EOL='
 '
@@ -118,6 +119,35 @@ mount_rev_encfs_ro()
 umount_encfs()
 {
   fusermount -u "$ENCFS_MOUNT_PATH"
+}
+
+
+exit_handler()
+{
+  # Disable int handler
+  trap - INT TERM EXIT
+
+  umount_encfs 2>/dev/null
+  umount_sshfs 2>/dev/null
+
+  # Remove LOCK_FILE
+  rm -f "$LOCK_FILE"
+}
+
+
+ctrl_handler()
+{
+  exit_handler;
+  
+  # Disable int handler
+  trap - INT TERM EXIT
+ 
+  if [ -z "$1" ]; then
+    stty intr ^C # Back to normal
+    exit         # Yep, I meant to do that... Kill/hang the shell.
+  else
+    exit $1
+  fi
 }
 
 
@@ -825,62 +855,83 @@ fi
 
 if [ -n "$LOG_VIEW" ]; then
   view_log_file "$LOG_VIEW"
-elif [ $UMOUNT -eq 1 ]; then
-  echo "* Unmounting SSHFS/ENCFS filesystems"
-  umount_remote_encfs;
-  echo ""
-elif [ -n "$MOUNT_RO_PATH" ]; then
-  echo "* Mounting (read-only) remote SSHFS/ENCFS filesystem \"${USER_AND_SERVER}:${TARGET_PATH}/$MOUNT_RO_PATH\" on \"$ENCFS_MOUNT_PATH/\" (via \"$SSHFS_MOUNT_PATH\")"
-
-  umount_remote_encfs 2>/dev/null
-  if mount_remote_encfs_ro "$MOUNT_RO_PATH"; then
-    echo "* Done"
-    echo ""
-  else
-    echo "ERROR: Mount failed. Please investigate!" >&2
-    echo "" >&2
-    exit 1
-  fi
-elif [ -n "$MOUNT_RW_PATH" ]; then
-  echo "* Mounting (read-WRITE) remote SSHFS/ENCFS filesystem \"${USER_AND_SERVER}:${TARGET_PATH}/$MOUNT_RW_PATH\" on \"$ENCFS_MOUNT_PATH/\" (via \"$SSHFS_MOUNT_PATH\")"
-
-  umount_remote_encfs 2>/dev/null
-  if mount_remote_encfs_rw "$MOUNT_RW_PATH"; then
-    echo "* Done"
-    echo ""
-  else
-    echo "ERROR: Mount failed. Please investigate!" >&2
-    echo "" >&2
-    exit 1
-  fi
-elif [ $INIT -eq 1 ]; then
-  remote_init
 else
-  if [ -z "$TARGET_PATH" ]; then
-    echo "ERROR: Missing TARGET_PATH setting. Check $CONF_FILE" >&2
-    echo "" >&2
-    exit 1
-  fi
+  # We don't want multiple instances so we use a lockfile
+  if ( set -o noclobber; echo "$$" > "$LOCK_FILE") 2> /dev/null; then
+    # Setup int handler
+    trap 'ctrl_handler' INT TERM EXIT
 
-  if [ -z "$BACKUP_DIRS" ]; then
-    echo "ERROR: Missing BACKUP_DIRS setting. Check $CONF_FILE" >&2
-    echo "" >&2
-    exit 1
-  fi
+    if [ $UMOUNT -eq 1 ]; then
+      echo "* Unmounting SSHFS/ENCFS filesystems"
+      umount_remote_encfs;
+      echo ""
+    elif [ -n "$MOUNT_RO_PATH" ]; then
+      echo "* Mounting (read-only) remote SSHFS/ENCFS filesystem \"${USER_AND_SERVER}:${TARGET_PATH}/$MOUNT_RO_PATH\" on \"$ENCFS_MOUNT_PATH/\" (via \"$SSHFS_MOUNT_PATH\")"
 
-  # Rotate logfile
-  rm -f "${LOG_FILE}.old"
-  if [ -e "${LOG_FILE}" ]; then
-    mv "${LOG_FILE}" "${LOG_FILE}.old"
-  fi
+      umount_remote_encfs 2>/dev/null
+      if mount_remote_encfs_ro "$MOUNT_RO_PATH"; then
+        echo "* Done"
+        echo ""
+      else
+        echo "ERROR: Mount failed. Please investigate!" >&2
+        echo "" >&2
+        exit_handler 1
+      fi
+    elif [ -n "$MOUNT_RW_PATH" ]; then
+      echo "* Mounting (read-WRITE) remote SSHFS/ENCFS filesystem \"${USER_AND_SERVER}:${TARGET_PATH}/$MOUNT_RW_PATH\" on \"$ENCFS_MOUNT_PATH/\" (via \"$SSHFS_MOUNT_PATH\")"
 
-  # Truncate logfile
-  printf "" >"${LOG_FILE}"
+      umount_remote_encfs 2>/dev/null
+      if mount_remote_encfs_rw "$MOUNT_RW_PATH"; then
+        echo "* Done"
+        echo ""
+      else
+        echo "ERROR: Mount failed. Please investigate!" >&2
+        echo "" >&2
+        exit_handler 1
+      fi
+    elif [ $INIT -eq 1 ]; then
+      remote_init
+    else
+      if [ -z "$TARGET_PATH" ]; then
+        echo "ERROR: Missing TARGET_PATH setting. Check $CONF_FILE" >&2
+        echo "" >&2
+        exit_handler 1
+      fi
 
-  if [ $BACKGROUND -eq 1 -a $FOREGROUND -eq 0 ]; then
-    backup_bg_process &
+      if [ -z "$BACKUP_DIRS" ]; then
+        echo "ERROR: Missing BACKUP_DIRS setting. Check $CONF_FILE" >&2
+        echo "" >&2
+        exit_handler 1
+      fi
+
+      # Rotate logfile
+      rm -f "${LOG_FILE}.old"
+      if [ -e "${LOG_FILE}" ]; then
+        mv "${LOG_FILE}" "${LOG_FILE}.old"
+      fi
+
+      # Truncate logfile
+      printf "" >"${LOG_FILE}"
+
+      if [ $BACKGROUND -eq 1 -a $FOREGROUND -eq 0 ]; then
+        backup_bg_process &
+      else
+        backup
+      fi
+    fi
+
+    # Remove lockfile
+    rm -f "$LOCK_FILE"
+
+    # Disable int handler
+    trap - INT TERM EXIT
   else
-    backup
+    echo "Failed to acquire lockfile: $LOCK_FILE" >&2
+    PID="$(cat $LOCK_FILE)"
+    echo "Held by $PID:" >&2
+    # FIXME: We should check what busybox ps supports
+    ps -e -o "%p %u %c %a" |grep -E "^[[:blank:]]$PID[[:blank:]]" >&2
+    exit 1
   fi
 fi
 
