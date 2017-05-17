@@ -720,7 +720,7 @@ process_commandline()
                            show_help
                            exit 1
                          else
-                           MOUNT_RO_PATH="$ARGVAL";;
+                           MOUNT_RO_PATH="$ARGVAL"
                          fi
                          ;;
               --mountrw) if [ -z "$ARGVAL" ]; then
@@ -728,7 +728,7 @@ process_commandline()
                            show_help
                            exit 1
                          else
-                           MOUNT_RW_PATH="$ARGVAL";;
+                           MOUNT_RW_PATH="$ARGVAL"
                          fi
                          ;;
        --dry-run|--test) DRY_RUN=1;;
