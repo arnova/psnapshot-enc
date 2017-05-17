@@ -24,7 +24,7 @@ MY_VERSION="0.30-BETA6"
 # ---------------------------------------------------------------------------------------------------------------------- 
 
 # Set some defaults. May be overriden by conf or commandline options
-CONF_FILE="$HOME/.psnapshot-enc.conf"
+DEFAULT_CONF_FILE="$HOME/.psnapshot-enc.conf"
 SSH_CIPHER="arcfour"
 ENCFS_CONF_FILE="$HOME/.encfs6.xml"
 SLEEP_TIME=900
@@ -689,8 +689,8 @@ process_commandline()
   DECODE=0
   VERBOSE=0
   NO_ROTATE=0
-  LOG_VIEW=""
   CONF_FILE=""
+  LOG_VIEW=""
 
   # Check arguments
   while [ -n "$1" ]; do
@@ -779,6 +779,11 @@ process_commandline()
 
     shift # Next argument
   done
+
+  # Fallback to default in case it's not specified
+  if [ -z "$CONF_FILE" ]; then
+    CONF_FILE="$DEFAULT_CONF_FILE"
+  fi
 }
 
 
