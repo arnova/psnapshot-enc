@@ -1,9 +1,9 @@
 #!/bin/sh
 
-MY_VERSION="0.30-BETA4"
+MY_VERSION="0.30-BETA5"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
-# Last update: May 16, 2017
+# Last update: May 17, 2017
 # (C) Copyright 2014-2017 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
@@ -30,36 +30,59 @@ TAB=$(printf "\t")
 # Functions:
 ############
 
-mount_remote_sshfs()
+mount_remote_sshfs_rw()
 {
-  mkdir -p "$SSHFS_MOUNT_PATH"
+  local SUB_DIR="$1"
+  shift
+
+  if ! mkdir -p "$SSHFS_MOUNT_PATH"; then
+    return 1 # Failure
+  fi
 
   if [ $(id -u) -eq 0 ]; then
-    sshfs "${USER_AND_SERVER}:${TARGET_PATH}/$1" "$SSHFS_MOUNT_PATH" -o Cipher="$SSH_CIPHER" -o nonempty
+    sshfs "${USER_AND_SERVER}:${TARGET_PATH}/$SUB_DIR" "$SSHFS_MOUNT_PATH" -o Cipher="$SSH_CIPHER" -o nonempty
   else
-    sshfs "${USER_AND_SERVER}:${TARGET_PATH}/$1" "$SSHFS_MOUNT_PATH" -o Cipher="$SSH_CIPHER",uid="$(id -u)",gid="$(id -g)" -o nonempty
+    sshfs "${USER_AND_SERVER}:${TARGET_PATH}/$SUB_DIR" "$SSHFS_MOUNT_PATH" -o Cipher="$SSH_CIPHER",uid="$(id -u)",gid="$(id -g)" -o nonempty
   fi
-  return $?
+}
+
+
+mount_remote_sshfs_ro()
+{
+  mount_remote_sshfs_rw $* -o ro
 }
 
 
 umount_remote_sshfs()
 {
   fusermount -u "$SSHFS_MOUNT_PATH"
-  return $?
 }
 
 
-mount_remote_encfs()
+mount_remote_encfs_rw()
 {
-  if mount_remote_sshfs "$1"; then
-    mkdir -p "$ENCFS_MOUNT_PATH"
+  local SUB_DIR="$1"
+  shift
+
+  if ! mkdir -p "$ENCFS_MOUNT_PATH"; then
+    return 1 # Failure
+  fi
+
+  if mount_remote_sshfs_rw "$SUB_DIR" $*; then
     if ENCFS6_CONFIG="$ENCFS_CONF_FILE" encfs --extpass="echo "$ENCFS_PASSWORD"" --standard "$SSHFS_MOUNT_PATH" "$ENCFS_MOUNT_PATH"; then
-      return 0
+      return 0 # Success
     fi
   fi
 
+  # Failure
+  umount_remote_sshfs 
   return 1
+}
+
+
+mount_remote_encfs_ro()
+{
+  mount_remote_encfs_rw $* -o ro
 }
 
 
@@ -70,15 +93,17 @@ umount_remote_encfs()
 }
 
 
-mount_rev_encfs()
+mount_rev_encfs_ro()
 {
-  mkdir -p "$ENCFS_MOUNT_PATH"
-
-  if ENCFS6_CONFIG="$ENCFS_CONF_FILE" encfs --reverse --extpass="echo "$ENCFS_PASSWORD"" --standard "$1" "$ENCFS_MOUNT_PATH"; then
-    return 0
+  if ! mkdir -p "$ENCFS_MOUNT_PATH"; then
+    return 1 # Failure
   fi
 
-  return 1
+  if ENCFS6_CONFIG="$ENCFS_CONF_FILE" encfs -o ro --reverse --extpass="echo "$ENCFS_PASSWORD"" --standard "$1" "$ENCFS_MOUNT_PATH"; then
+    return 0 # Success
+  fi
+
+  return 1 # Failure
 }
 
 
@@ -218,7 +243,7 @@ backup()
     if [ "$ENCFS_ENABLE" != "0" ]; then
       umount_encfs 2>/dev/null # First unmount
 
-      if ! mount_rev_encfs "$SOURCE_DIR"; then
+      if ! mount_rev_encfs_ro "$SOURCE_DIR"; then
         echo "ERROR: ENCFS mount of \"$SOURCE_DIR\" on \"$ENCFS_MOUNT_PATH\" failed. Aborting backup for $SOURCE_DIR!" >&2
         echo "ERROR: ENCFS mount of \"$SOURCE_DIR\" on \"$ENCFS_MOUNT_PATH\" failed. Aborting backup for $SOURCE_DIR!" |tee -a "$LOG_FILE"
         RET=1
@@ -227,7 +252,7 @@ backup()
     fi
 
     umount_remote_sshfs 2>/dev/null # First unmount
-    if ! mount_remote_sshfs "$SUB_DIR"; then
+    if ! mount_remote_sshfs_rw "$SUB_DIR"; then
       echo "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}/$SUB_DIR\" on \"$SSHFS_MOUNT_PATH\" failed. Aborting backup for $SOURCE_DIR!" >&2
       echo "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}/$SUB_DIR\" on \"$SSHFS_MOUNT_PATH\" failed. Aborting backup for $SOURCE_DIR!" |tee -a "$LOG_FILE"
       RET=1
@@ -429,12 +454,15 @@ remote_init()
   umount_encfs 2>/dev/null
 
   echo "* Using ENCFS6 config file: $ENCFS_CONF_FILE"
-  if mount_rev_encfs; then
+
+  # Test mount rev encfs
+  if mount_rev_encfs_ro; then
     echo "* Done. Don't forget to backup your config file ($ENCFS_CONF_FILE)!"
     echo ""
     echo "You should now probably generate + setup SSH keys (if not done already)"
   else
     echo "ERROR: Init failed. Please investigate!" >&2
+    return 1
   fi
 
   echo ""
@@ -454,7 +482,7 @@ remote_init()
     fi
 
     umount_remote_sshfs 2>/dev/null # First unmount
-    if ! mount_remote_sshfs; then
+    if ! mount_remote_sshfs_rw; then
       echo "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}\" on \"$SSHFS_MOUNT_PATH\" failed!" >&2
       RET=1
       continue;
@@ -573,8 +601,9 @@ show_help()
   echo "--verbose                   - Be verbose with displaying info" >&2
   echo "--background                - Background daemon mode" >&2
   echo "--foreground                - Foreground daemon mode" >&2
-  echo "--mount={remote_dir}        - Mount remote sshfs/encfs filesystem" >&2
-  echo "--umount                    - Umount remote sshfs/encfs filesystem" >&2
+  echo "--mount={remote_dir}        - Mount remote sshfs+encfs backup folder (read-only)" >&2
+  echo "--mountrw={remote_dir}      - Mount remote sshfs+encfs backup folder (read-write)" >&2
+  echo "--umount                    - Umount remote sshfs+encfs filesystem" >&2
   echo "--logview={log_file}        - View (decoded) log file" >&2
   echo "--conf|-c={config_file}     - Specify alternate configuration file (default=~/.psnapshot.conf)" >&2
   echo "--cipher={cipher}           - Specify SSH cipher (default=arcfour)" >&2
@@ -644,7 +673,8 @@ process_commandline()
   # Set environment variables to default
   DRY_RUN=0
   INIT=0
-  MOUNT=""
+  MOUNT_RO_PATH=""
+  MOUNT_RW_PATH=""
   UMOUNT=0
   BACKGROUND=0
   FOREGROUND=0
@@ -685,8 +715,23 @@ process_commandline()
                            LOG_VIEW="$ARGVAL"
                          fi
                          ;;
+                --mount) if [ -z "$ARGVAL" ]; then
+                           echo "ERROR: Bad command syntax with argument \"$ARG\"" >&2
+                           show_help
+                           exit 1
+                         else
+                           MOUNT_RO_PATH="$ARGVAL";;
+                         fi
+                         ;;
+              --mountrw) if [ -z "$ARGVAL" ]; then
+                           echo "ERROR: Bad command syntax with argument \"$ARG\"" >&2
+                           show_help
+                           exit 1
+                         else
+                           MOUNT_RW_PATH="$ARGVAL";;
+                         fi
+                         ;;
        --dry-run|--test) DRY_RUN=1;;
-                --mount) MOUNT="$ARGVAL";;
         --background|-b) BACKGROUND=1;;
            --foreground) FOREGROUND=1;;
                --decode) DECODE=1;;
@@ -785,23 +830,34 @@ fi
 
 if [ -n "$LOG_VIEW" ]; then
   view_log_file "$LOG_VIEW"
-elif [ $INIT -eq 1 ]; then
-  remote_init
-elif [ -n "$MOUNT" ]; then
-  echo "* Mounting remote SSHFS/ENCFS filesystem \"${USER_AND_SERVER}:${TARGET_PATH}\" on \"$ENCFS_MOUNT_PATH/$MOUNT\" (via \"$SSHFS_MOUNT_PATH/$MOUNT\")"
+elif [ $UMOUNT -eq 1 ]; then
+  echo "* Unmounting SSHFS/ENCFS filesystems"
+  umount_remote_encfs;
+  echo ""
+elif [ -n "$MOUNT_RO_PATH" ]; then
+  echo "* Mounting (read-only) remote SSHFS/ENCFS filesystem \"${USER_AND_SERVER}:${TARGET_PATH}/$MOUNT_RO_PATH\" on \"$ENCFS_MOUNT_PATH/$MOUNT_RO_PATH\" (via \"$SSHFS_MOUNT_PATH/$MOUNT_RO_PATH\")"
 
   umount_remote_encfs 2>/dev/null
-  if mount_remote_encfs "$MOUNT"; then
+  if mount_remote_encfs_ro "$MOUNT_RO_PATH"; then
     echo "* Done"
     echo ""
   else
     echo "ERROR: Mount failed. Please investigate!" >&2
     exit 1
   fi
-elif [ $UMOUNT -eq 1 ]; then
-  umount_remote_encfs;
-  echo "* SSHFS/ENCFS filesystems unmounted"
-  echo ""
+elif [ -n "$MOUNT_RW_PATH" ]; then
+  echo "* Mounting (read-WRITE) remote SSHFS/ENCFS filesystem \"${USER_AND_SERVER}:${TARGET_PATH}/$MOUNT_RW_PATH\" on \"$ENCFS_MOUNT_PATH/$MOUNT_RW_PATH\" (via \"$SSHFS_MOUNT_PATH/$MOUNT_RW_PATH\")"
+
+  umount_remote_encfs 2>/dev/null
+  if mount_remote_encfs_rw "$MOUNT_RW_PATH"; then
+    echo "* Done"
+    echo ""
+  else
+    echo "ERROR: Mount failed. Please investigate!" >&2
+    exit 1
+  fi
+elif [ $INIT -eq 1 ]; then
+  remote_init
 else
   if [ -z "$TARGET_PATH" ]; then
     echo "ERROR: Missing TARGET_PATH setting. Check $CONF_FILE" >&2
