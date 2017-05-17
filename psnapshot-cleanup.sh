@@ -5,7 +5,7 @@ EOL='
 TAB=$(printf '\t')
 
 # Settings:
-DIRS="/mnt/archive/backup/barno/snapshots/0-hlc762KPRxK,dPoNxpcSQ2/ /mnt/archive/backup/barno/snapshots/NizqzNKnjGYq-X1XeFKkXjGq/ /mnt/archive/backup/barno/snapshots/OoORCk6QW2SyfZX-Vj90Ecjl/"
+DIRS="/mnt/archive/backup/barno/snapshots/YOUR_DIR"
 DAILY_KEEP=14
 MONTHLY_KEEP=3
 YEARLY_KEEP=3
