@@ -824,7 +824,7 @@ elif [ $UMOUNT -eq 1 ]; then
   umount_remote_encfs;
   echo ""
 elif [ -n "$MOUNT_RO_PATH" ]; then
-  echo "* Mounting (read-only) remote SSHFS/ENCFS filesystem \"${USER_AND_SERVER}:${TARGET_PATH}/$MOUNT_RO_PATH\" on \"$ENCFS_MOUNT_PATH/$MOUNT_RO_PATH\" (via \"$SSHFS_MOUNT_PATH/$MOUNT_RO_PATH\")"
+  echo "* Mounting (read-only) remote SSHFS/ENCFS filesystem \"${USER_AND_SERVER}:${TARGET_PATH}/$MOUNT_RO_PATH\" on \"$ENCFS_MOUNT_PATH/\" (via \"$SSHFS_MOUNT_PATH\")"
 
   umount_remote_encfs 2>/dev/null
   if mount_remote_encfs_ro "$MOUNT_RO_PATH"; then
@@ -836,7 +836,7 @@ elif [ -n "$MOUNT_RO_PATH" ]; then
     exit 1
   fi
 elif [ -n "$MOUNT_RW_PATH" ]; then
-  echo "* Mounting (read-WRITE) remote SSHFS/ENCFS filesystem \"${USER_AND_SERVER}:${TARGET_PATH}/$MOUNT_RW_PATH\" on \"$ENCFS_MOUNT_PATH/$MOUNT_RW_PATH\" (via \"$SSHFS_MOUNT_PATH/$MOUNT_RW_PATH\")"
+  echo "* Mounting (read-WRITE) remote SSHFS/ENCFS filesystem \"${USER_AND_SERVER}:${TARGET_PATH}/$MOUNT_RW_PATH\" on \"$ENCFS_MOUNT_PATH/\" (via \"$SSHFS_MOUNT_PATH\")"
 
   umount_remote_encfs 2>/dev/null
   if mount_remote_encfs_rw "$MOUNT_RW_PATH"; then
