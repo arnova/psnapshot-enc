@@ -24,7 +24,7 @@ MY_VERSION="0.30-BETA6"
 # ---------------------------------------------------------------------------------------------------------------------- 
 
 # Set some defaults. May be overriden by conf or commandline options
-DEFAULT_CONF_FILE="$HOME/.psnapshot-enc.conf"
+CONF_FILE="$HOME/.psnapshot-enc.conf"
 SSH_CIPHER="arcfour"
 ENCFS_CONF_FILE="$HOME/.encfs6.xml"
 SLEEP_TIME=900
@@ -676,7 +676,7 @@ sanity_check()
 }
 
 
-process_commandline()
+process_commandline_and_load_conf()
 {
   # Set environment variables to default
   DRY_RUN=0
@@ -687,10 +687,11 @@ process_commandline()
   BACKGROUND=0
   FOREGROUND=0
   DECODE=0
-  VERBOSE=0
   NO_ROTATE=0
-  CONF_FILE=""
   LOG_VIEW=""
+
+  OPT_VERBOSE=0
+  OPT_CONF_FILE=""
 
   # Check arguments
   while [ -n "$1" ]; do
@@ -704,7 +705,7 @@ process_commandline()
                            show_help
                            exit 1
                          else
-                           CONF_FILE="$ARGVAL"
+                           OPT_CONF_FILE="$ARGVAL"
                          fi
                          ;;
                --cipher) if [ -z "$ARGVAL" ]; then
@@ -744,7 +745,7 @@ process_commandline()
            --foreground) FOREGROUND=1;;
                --decode) DECODE=1;;
              --norotate) NO_ROTATE=1;;
-              --verbose) VERBOSE=1;;
+           --verbose|-v) OPT_VERBOSE=1;;
                --umount) UMOUNT=1;;
               --init|-i) INIT=1;;
               --help|-h) show_help;
@@ -753,8 +754,8 @@ process_commandline()
                      --) shift
                          # Check for remaining arguments
                          if [ -n "$*" ]; then
-                           if [ -z "$CONF_FILE" ]; then
-                             CONF_FILE="$*"
+                           if [ -z "$OPT_CONF_FILE" ]; then
+                             OPT_CONF_FILE="$*"
                            else
                              echo "ERROR: Bad command syntax with argument \"$*\"" >&2
                              show_help
@@ -767,8 +768,8 @@ process_commandline()
                          show_help
                          exit 1
                          ;;
-                      *) if [ -z "$CONF_FILE" ]; then
-                           CONF_FILE="$ARG"
+                      *) if [ -z "$OPT_CONF_FILE" ]; then
+                           OPT_CONF_FILE="$ARG"
                          else
                            echo "ERROR: Bad command syntax with argument \"$ARG\"" >&2
                            show_help
@@ -781,8 +782,22 @@ process_commandline()
   done
 
   # Fallback to default in case it's not specified
-  if [ -z "$CONF_FILE" ]; then
-    CONF_FILE="$DEFAULT_CONF_FILE"
+  if [ -n "$OPT_CONF_FILE" ]; then
+    CONF_FILE="$OPT_CONF_FILE"
+  fi
+
+  if [ -z "$CONF_FILE" -o ! -e "$CONF_FILE" ]; then
+    echo "ERROR: Missing config file ($CONF_FILE)!" >&2
+    echo "" >&2
+    exit 1
+  fi
+
+  # Source config file
+  . "$CONF_FILE"
+
+  # Special handling for verbose
+  if [ "$VERBOSE" != "1" ]; then
+    VERBOSE="$OPT_VERBOSE"
   fi
 }
 
@@ -792,16 +807,7 @@ process_commandline()
 echo "psnapshot-enc v$MY_VERSION - (C) Copyright 2014-2017 by Arno van Amersfoort"
 echo ""
 
-process_commandline $*;
-
-if [ -z "$CONF_FILE" -o ! -e "$CONF_FILE" ]; then
-  echo "ERROR: Missing config file ($CONF_FILE)!" >&2
-  echo "" >&2
-  exit 1
-fi
-
-# Source config file
-. "$CONF_FILE"
+process_commandline_and_load_conf $*;
 
 sanity_check;
 
