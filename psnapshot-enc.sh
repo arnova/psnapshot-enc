@@ -637,6 +637,7 @@ show_help()
   echo "--norotate                  - Don't rotate .sync to current date folder when done" >&2
   echo "--decode                    - Decode encoded filesnames for display (slower!)" >&2
   echo "--verbose                   - Be verbose with displaying info" >&2
+  echo "--removelock|--rmlock       - Remove (stale) lock file (recommended with --background)" >&2
   echo "--background                - Background daemon mode" >&2
   echo "--foreground                - Foreground daemon mode" >&2
   echo "--mount={remote_dir}        - Mount remote sshfs+encfs backup folder (read-only)" >&2
@@ -719,6 +720,7 @@ process_commandline_and_load_conf()
   DECODE=0
   NO_ROTATE=0
   LOG_VIEW=""
+  REMOVE_LOCK=0
 
   OPT_VERBOSE=0
   OPT_CONF_FILE=""
@@ -778,6 +780,7 @@ process_commandline_and_load_conf()
            --verbose|-v) OPT_VERBOSE=1;;
                --umount) UMOUNT=1;;
               --init|-i) INIT=1;;
+ --remove_lock|--rmlock) REMOVE_LOCK=1;;
               --help|-h) show_help;
                          exit 0
                          ;;
@@ -829,6 +832,10 @@ process_commandline_and_load_conf()
   if [ "$VERBOSE" != "1" ]; then
     VERBOSE="$OPT_VERBOSE"
   fi
+
+  if [ -z "$MAIL_TO" ]; then
+    MAIL_TO="root"
+  fi
 }
 
 
@@ -849,8 +856,9 @@ if [ -z "$ENCFS_PASSWORD" -a "$UMOUNT" = "0" ]; then
   echo ""
 fi
 
-if [ -z "$MAIL_TO" ]; then
-  MAIL_TO="root"
+# Remove (stale) lockfile?
+if [ $REMOVE_LOCK -eq 1 ]; then
+  rm -f "$LOCK_FILE"
 fi
 
 if [ -n "$LOG_VIEW" ]; then
