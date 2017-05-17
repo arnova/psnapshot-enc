@@ -1,6 +1,6 @@
 #!/bin/sh
 
-MY_VERSION="0.30-BETA5"
+MY_VERSION="0.30-BETA6"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
 # Last update: May 17, 2017
@@ -22,6 +22,14 @@ MY_VERSION="0.30-BETA5"
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 # ---------------------------------------------------------------------------------------------------------------------- 
+
+# Set some defaults. May be overriden by conf or commandline options
+CONF_FILE="$HOME/.psnapshot-enc.conf"
+SSH_CIPHER="arcfour"
+ENCFS_CONF_FILE="$HOME/.encfs6.xml"
+SLEEP_TIME=900
+ENCFS_MOUNT_PATH="/mnt/encfs"
+SSHFS_MOUNT_PATH="/mnt/sshfs"
 
 EOL='
 '
@@ -771,30 +779,6 @@ process_commandline()
 
     shift # Next argument
   done
-
-  if [ -z "$CONF_FILE" ]; then
-    CONF_FILE="$HOME/.psnapshot-enc.conf"
-  fi
-
-  if [ -z "$SSH_CIPHER" ]; then
-    SSH_CIPHER="arcfour"
-  fi
-
-  if [ -z "$ENCFS_CONF_FILE" ]; then
-    ENCFS_CONF_FILE="$HOME/.encfs6.xml"
-  fi
-
-  if [ -z "$SLEEP_TIME" ]; then
-    SLEEP_TIME=900
-  fi
-
-  if [ -z "$ENCFS_MOUNT_PATH" ]; then
-    ENCFS_MOUNT_PATH="/mnt/encfs"
-  fi
-
-  if [ -z "$SSHFS_MOUNT_PATH" ]; then
-    SSHFS_MOUNT_PATH="/mnt/sshfs"
-  fi
 }
 
 
@@ -807,7 +791,7 @@ process_commandline $*;
 
 if [ -z "$CONF_FILE" -o ! -e "$CONF_FILE" ]; then
   echo "ERROR: Missing config file ($CONF_FILE)!" >&2
-  echo ""
+  echo "" >&2
   exit 1
 fi
 
@@ -843,6 +827,7 @@ elif [ -n "$MOUNT_RO_PATH" ]; then
     echo ""
   else
     echo "ERROR: Mount failed. Please investigate!" >&2
+    echo "" >&2
     exit 1
   fi
 elif [ -n "$MOUNT_RW_PATH" ]; then
@@ -854,6 +839,7 @@ elif [ -n "$MOUNT_RW_PATH" ]; then
     echo ""
   else
     echo "ERROR: Mount failed. Please investigate!" >&2
+    echo "" >&2
     exit 1
   fi
 elif [ $INIT -eq 1 ]; then
@@ -861,13 +847,13 @@ elif [ $INIT -eq 1 ]; then
 else
   if [ -z "$TARGET_PATH" ]; then
     echo "ERROR: Missing TARGET_PATH setting. Check $CONF_FILE" >&2
-    echo ""
+    echo "" >&2
     exit 1
   fi
 
   if [ -z "$BACKUP_DIRS" ]; then
     echo "ERROR: Missing BACKUP_DIRS setting. Check $CONF_FILE" >&2
-    echo ""
+    echo "" >&2
     exit 1
   fi
 
