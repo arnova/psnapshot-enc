@@ -3,7 +3,7 @@
 
                       ~ In memory of my dear father ~
 
-(C) Copyright 2015 by Arno van Amersfoort
+(C) Copyright 2015-2017 by Arno van Amersfoort
 Homepage   : http://rocky.eld.leidenuniv.nl/
 Email      : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
              (note: you must remove all spaces and substitute the @ and the .
@@ -56,6 +56,7 @@ report back.
 Requirements
 ------------
 - rsync
+- ssh
 - sshfs
 - encfs
 - (root) POSIX shell
@@ -64,9 +65,7 @@ Requirements
 Compatible/tested systems
 -------------------------
 - Any Linux operating systems meeting the above requirements
-- "ZyXEL NSA325v2" NAS (running FFP). Although untested, it should probably
-  also work on other Linux based NAS systems with (root) shell access like
-  "Netgear ReadyNAS 102"
-
-
+- "ZyXEL NSA325v2" NAS (running FFP) and "Netgear ReadyNAS 102". Although
+  untested, it should probably also work on other Linux based NAS systems
+  with (root) shell access.
 
