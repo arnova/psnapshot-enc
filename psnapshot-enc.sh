@@ -143,9 +143,10 @@ lock_enter()
     # Thanks to Grzegorz Wierzowiecki for pointing out this race condition on
     # http://wiki.grzegorz.wierzowiecki.pl/code:mutex-in-bash
     if [ $? = 0 ]; then
-      if ! kill -0 $PID &>/dev/null; then
+      if ! kill -0 $PID 2>/dev/null; then
         # lock is stale, remove it and restart
-        echo "Removing stale lock of nonexistant PID ${PID}" >&2
+        echo "WARNING: Removing stale lock of nonexistant PID ${PID}" >&2
+        echo "" >&2
         rm -f "$LOCK_FILE"
       fi
     fi
@@ -153,8 +154,8 @@ lock_enter()
     FAIL_COUNT=$((FAIL_COUNT + 1))
   done
 
-  echo "Failed to acquire lockfile: $LOCK_FILE" >&2
-  echo "Held by $(cat $LOCK_FILE)" >&2
+  echo "ERROR: Failed to acquire lockfile: $LOCK_FILE. Held by PID $(cat $LOCK_FILE)" >&2
+  echo "" >&2
 
   return 1 # Lock failed
 }
@@ -162,6 +163,9 @@ lock_enter()
 
 lock_leave()
 {
+  # Disable int handler
+  trap - INT TERM EXIT
+
   # Remove lockfile
   rm -f "$LOCK_FILE"
 }
@@ -933,7 +937,8 @@ else
       else
         echo "ERROR: Mount failed. Please investigate!" >&2
         echo "" >&2
-        exit_handler 1
+        exit_handler
+        exit 1
       fi
     fi
   elif [ -n "$MOUNT_RW_PATH" ]; then
@@ -947,7 +952,8 @@ else
       else
         echo "ERROR: Mount failed. Please investigate!" >&2
         echo "" >&2
-        exit_handler 1
+        exit_handler
+        exit 1
       fi
     fi
   elif [ $INIT -eq 1 ]; then
@@ -956,13 +962,13 @@ else
     if [ -z "$TARGET_PATH" ]; then
       echo "ERROR: Missing TARGET_PATH setting. Check $CONF_FILE" >&2
       echo "" >&2
-      exit_handler 1
+      exit 1
     fi
 
     if [ -z "$BACKUP_DIRS" ]; then
       echo "ERROR: Missing BACKUP_DIRS setting. Check $CONF_FILE" >&2
       echo "" >&2
-      exit_handler 1
+      exit 1
     fi
 
     # Rotate logfile
@@ -982,4 +988,6 @@ else
   fi
 fi
 
-exit_handler 0
+lock_leave
+
+exit 0
