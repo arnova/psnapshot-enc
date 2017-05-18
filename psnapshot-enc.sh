@@ -978,6 +978,16 @@ else
       exit 1
     fi
 
+    # Make sure we're not already running in the background
+    if [ $BACKGROUND -eq 1 ]; then
+      PID_COUNT="$(pgrep -f $0 |wc -l)"
+      if [ $PID_COUNT -gt 2 ]; then
+        echo "ERROR: $0 is already (background) running" >&2
+        echo "" >&2
+        exit 1
+      fi
+    fi
+
     # Rotate logfile
     rm -f "${LOG_FILE}.old"
     if [ -e "${LOG_FILE}" ]; then
