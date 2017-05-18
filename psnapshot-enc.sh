@@ -692,7 +692,7 @@ show_help()
   echo "--norotate                  - Don't rotate .sync to current date folder when done" >&2
   echo "--decode                    - Decode encoded filesnames for display (slower!)" >&2
   echo "--verbose                   - Be verbose with displaying info" >&2
-  echo "--removelock|--rmlock       - Remove (stale) lock file (recommended with --background)" >&2
+  echo "--removelock|--rmlock       - Remove (stale) lock file" >&2
   echo "--background                - Background daemon mode" >&2
   echo "--mount={remote_dir}        - Mount remote sshfs+encfs backup folder (read-only)" >&2
   echo "--mountrw={remote_dir}      - Mount remote sshfs+encfs backup folder (read-write)" >&2
@@ -832,7 +832,7 @@ process_commandline_and_load_conf()
            --verbose|-v) OPT_VERBOSE=1;;
                --umount) UMOUNT=1;;
               --init|-i) INIT=1;;
- --remove_lock|--rmlock) REMOVE_LOCK=1;;
+  --removelock|--rmlock) REMOVE_LOCK=1;;
               --help|-h) show_help;
                          exit 0
                          ;;
