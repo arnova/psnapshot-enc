@@ -295,7 +295,7 @@ check_command_error()
     printf "\033[40m\033[1;31mERROR  : Command(s) \"$(echo "$@" |tr ' ' '|')\" is/are not available!\033[0m\n" >&2
     printf "\033[40m\033[1;31m         Please investigate. Quitting...\033[0m\n" >&2
     echo ""
-    exit 2
+    exit 1
   fi
 }
 
@@ -539,10 +539,6 @@ backup()
 remote_init()
 {
   local RET=0
-
-  if ! lock_enter; then
-    return 1
-  fi
 
   umount_encfs 2>/dev/null
 
@@ -921,44 +917,55 @@ if [ -n "$LOG_VIEW" ]; then
   view_log_file "$LOG_VIEW"
 else
   if [ $UMOUNT -eq 1 ]; then
-    if lock_enter; then
-      echo "* Unmounting SSHFS/ENCFS filesystems"
-      umount_remote_encfs;
-      echo ""
+    if ! lock_enter; then
+      exit 2
     fi
-  elif [ -n "$MOUNT_RO_PATH" ]; then
-    if lock_enter; then
-      echo "* Mounting (read-only) remote SSHFS/ENCFS filesystem \"${USER_AND_SERVER}:${TARGET_PATH}/$MOUNT_RO_PATH\" on \"$ENCFS_MOUNT_PATH/\" (via \"$SSHFS_MOUNT_PATH\")"
 
-      umount_remote_encfs 2>/dev/null
-      if mount_remote_encfs_ro "$MOUNT_RO_PATH"; then
-        echo "* Done"
-        echo ""
-      else
-        echo "ERROR: Mount failed. Please investigate!" >&2
-        echo "" >&2
-        exit_handler
-        exit 1
-      fi
+    echo "* Unmounting SSHFS/ENCFS filesystems"
+    umount_remote_encfs;
+    echo ""
+  elif [ -n "$MOUNT_RO_PATH" ]; then
+    if ! lock_enter; then
+      exit 2
+    fi
+
+    echo "* Mounting (read-only) remote SSHFS/ENCFS filesystem \"${USER_AND_SERVER}:${TARGET_PATH}/$MOUNT_RO_PATH\" on \"$ENCFS_MOUNT_PATH/\" (via \"$SSHFS_MOUNT_PATH\")"
+
+    umount_remote_encfs 2>/dev/null
+    if mount_remote_encfs_ro "$MOUNT_RO_PATH"; then
+      echo "* Done"
+      echo ""
+    else
+      echo "ERROR: Mount failed. Please investigate!" >&2
+      echo "" >&2
+      exit_handler
+      exit 1
     fi
   elif [ -n "$MOUNT_RW_PATH" ]; then
-    if lock_enter; then
-      echo "* Mounting (read-WRITE) remote SSHFS/ENCFS filesystem \"${USER_AND_SERVER}:${TARGET_PATH}/$MOUNT_RW_PATH\" on \"$ENCFS_MOUNT_PATH/\" (via \"$SSHFS_MOUNT_PATH\")"
+    if ! lock_enter; then
+      exit 2
+    fi
 
-      umount_remote_encfs 2>/dev/null
-      if mount_remote_encfs_rw "$MOUNT_RW_PATH"; then
-        echo "* Done"
-        echo ""
-      else
-        echo "ERROR: Mount failed. Please investigate!" >&2
-        echo "" >&2
-        exit_handler
-        exit 1
-      fi
+    echo "* Mounting (read-WRITE) remote SSHFS/ENCFS filesystem \"${USER_AND_SERVER}:${TARGET_PATH}/$MOUNT_RW_PATH\" on \"$ENCFS_MOUNT_PATH/\" (via \"$SSHFS_MOUNT_PATH\")"
+
+    umount_remote_encfs 2>/dev/null
+    if mount_remote_encfs_rw "$MOUNT_RW_PATH"; then
+      echo "* Done"
+      echo ""
+    else
+      echo "ERROR: Mount failed. Please investigate!" >&2
+      echo "" >&2
+      exit_handler
+      exit 1
     fi
   elif [ $INIT -eq 1 ]; then
+    if ! lock_enter; then
+      exit 2
+    fi
+
     remote_init
   else
+    # NOTE: Locking for backup is handled inside backup()
     if [ -z "$TARGET_PATH" ]; then
       echo "ERROR: Missing TARGET_PATH setting. Check $CONF_FILE" >&2
       echo "" >&2
