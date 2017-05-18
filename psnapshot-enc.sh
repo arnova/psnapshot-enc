@@ -3,7 +3,7 @@
 MY_VERSION="0.30-BETA7"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
-# Last update: May 17, 2017
+# Last update: May 18, 2017
 # (C) Copyright 2014-2017 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
@@ -122,6 +122,30 @@ umount_encfs()
 }
 
 
+lock_enter()
+{
+  # We don't want multiple instances so we use a lockfile
+  if ( set -o noclobber; echo "$$" > "$LOCK_FILE") 2> /dev/null; then
+    # Setup int handler
+    trap 'ctrl_handler' INT TERM EXIT
+
+    return 0 # Lock success
+  fi
+
+  echo "Failed to acquire lockfile: $LOCK_FILE" >&2
+  echo "Held by $(cat $LOCK_FILE)" >&2
+
+  return 1 # Lock failed
+}
+
+
+lock_leave()
+{
+  # Remove lockfile
+  rm -f "$LOCK_FILE"
+}
+
+
 exit_handler()
 {
   # Disable int handler
@@ -130,18 +154,14 @@ exit_handler()
   umount_encfs 2>/dev/null
   umount_sshfs 2>/dev/null
 
-  # Remove LOCK_FILE
-  rm -f "$LOCK_FILE"
+  lock_leave
 }
 
 
 ctrl_handler()
 {
-  exit_handler;
-  
-  # Disable int handler
-  trap - INT TERM EXIT
- 
+  exit_handler
+
   if [ -z "$1" ]; then
     stty intr ^C # Back to normal
     exit         # Yep, I meant to do that... Kill/hang the shell.
@@ -258,6 +278,10 @@ check_command_error()
 backup()
 {
   local RET=0
+
+  if ! lock_enter; then
+    return 1
+  fi
 
   CUR_DATE=`date "+%Y-%m-%d"`
 
@@ -481,6 +505,8 @@ backup()
     echo "**************************************************************" |tee -a "$LOG_FILE"
   done
 
+  lock_leave
+
   return $RET
 }
 
@@ -488,6 +514,10 @@ backup()
 remote_init()
 {
   local RET=0
+
+  if ! lock_enter; then
+    return 1
+  fi
 
   umount_encfs 2>/dev/null
 
@@ -548,8 +578,12 @@ backup_bg_process()
     result="$(backup 2>&1)"
     retval=$?
 
+    if [ $VERBOSE -eq 1 ]; then
+      echo "$result"
+    fi
+
     if [ $retval -ne 0 ] || echo "$result" |grep -q -i -e error -e warning -e fail ]; then
-      printf "Subject: psnapshot FAILURE\n$result\n" |sendmail "$MAIL_TO"
+      printf "Subject: psnapshot-enc FAILURE\n$result\n" |sendmail "$MAIL_TO"
     fi
 
     # Sleep till the next sync
@@ -639,7 +673,6 @@ show_help()
   echo "--verbose                   - Be verbose with displaying info" >&2
   echo "--removelock|--rmlock       - Remove (stale) lock file (recommended with --background)" >&2
   echo "--background                - Background daemon mode" >&2
-  echo "--foreground                - Foreground daemon mode" >&2
   echo "--mount={remote_dir}        - Mount remote sshfs+encfs backup folder (read-only)" >&2
   echo "--mountrw={remote_dir}      - Mount remote sshfs+encfs backup folder (read-write)" >&2
   echo "--umount                    - Umount remote sshfs+encfs filesystem" >&2
@@ -716,7 +749,6 @@ process_commandline_and_load_conf()
   MOUNT_RW_PATH=""
   UMOUNT=0
   BACKGROUND=0
-  FOREGROUND=0
   DECODE=0
   NO_ROTATE=0
   LOG_VIEW=""
@@ -774,7 +806,6 @@ process_commandline_and_load_conf()
                          ;;
        --dry-run|--test) DRY_RUN=1;;
         --background|-b) BACKGROUND=1;;
-           --foreground) FOREGROUND=1;;
                --decode) DECODE=1;;
              --norotate) NO_ROTATE=1;;
            --verbose|-v) OPT_VERBOSE=1;;
@@ -864,16 +895,14 @@ fi
 if [ -n "$LOG_VIEW" ]; then
   view_log_file "$LOG_VIEW"
 else
-  # We don't want multiple instances so we use a lockfile
-  if ( set -o noclobber; echo "$$" > "$LOCK_FILE") 2> /dev/null; then
-    # Setup int handler
-    trap 'ctrl_handler' INT TERM EXIT
-
-    if [ $UMOUNT -eq 1 ]; then
+  if [ $UMOUNT -eq 1 ]; then
+    if lock_enter; then
       echo "* Unmounting SSHFS/ENCFS filesystems"
       umount_remote_encfs;
       echo ""
-    elif [ -n "$MOUNT_RO_PATH" ]; then
+    fi
+  elif [ -n "$MOUNT_RO_PATH" ]; then
+    if lock_enter; then
       echo "* Mounting (read-only) remote SSHFS/ENCFS filesystem \"${USER_AND_SERVER}:${TARGET_PATH}/$MOUNT_RO_PATH\" on \"$ENCFS_MOUNT_PATH/\" (via \"$SSHFS_MOUNT_PATH\")"
 
       umount_remote_encfs 2>/dev/null
@@ -885,7 +914,9 @@ else
         echo "" >&2
         exit_handler 1
       fi
-    elif [ -n "$MOUNT_RW_PATH" ]; then
+    fi
+  elif [ -n "$MOUNT_RW_PATH" ]; then
+    if lock_enter; then
       echo "* Mounting (read-WRITE) remote SSHFS/ENCFS filesystem \"${USER_AND_SERVER}:${TARGET_PATH}/$MOUNT_RW_PATH\" on \"$ENCFS_MOUNT_PATH/\" (via \"$SSHFS_MOUNT_PATH\")"
 
       umount_remote_encfs 2>/dev/null
@@ -897,48 +928,37 @@ else
         echo "" >&2
         exit_handler 1
       fi
-    elif [ $INIT -eq 1 ]; then
-      remote_init
-    else
-      if [ -z "$TARGET_PATH" ]; then
-        echo "ERROR: Missing TARGET_PATH setting. Check $CONF_FILE" >&2
-        echo "" >&2
-        exit_handler 1
-      fi
-
-      if [ -z "$BACKUP_DIRS" ]; then
-        echo "ERROR: Missing BACKUP_DIRS setting. Check $CONF_FILE" >&2
-        echo "" >&2
-        exit_handler 1
-      fi
-
-      # Rotate logfile
-      rm -f "${LOG_FILE}.old"
-      if [ -e "${LOG_FILE}" ]; then
-        mv "${LOG_FILE}" "${LOG_FILE}.old"
-      fi
-
-      # Truncate logfile
-      printf "" >"${LOG_FILE}"
-
-      if [ $BACKGROUND -eq 1 -a $FOREGROUND -eq 0 ]; then
-        backup_bg_process &
-      else
-        backup
-      fi
+    fi
+  elif [ $INIT -eq 1 ]; then
+    remote_init
+  else
+    if [ -z "$TARGET_PATH" ]; then
+      echo "ERROR: Missing TARGET_PATH setting. Check $CONF_FILE" >&2
+      echo "" >&2
+      exit_handler 1
     fi
 
-    # Remove lockfile
-    rm -f "$LOCK_FILE"
+    if [ -z "$BACKUP_DIRS" ]; then
+      echo "ERROR: Missing BACKUP_DIRS setting. Check $CONF_FILE" >&2
+      echo "" >&2
+      exit_handler 1
+    fi
 
-    # Disable int handler
-    trap - INT TERM EXIT
-  else
-    echo "Failed to acquire lockfile: $LOCK_FILE" >&2
-    echo "Held by $(cat $LOCK_FILE)" >&2
+    # Rotate logfile
+    rm -f "${LOG_FILE}.old"
+    if [ -e "${LOG_FILE}" ]; then
+      mv "${LOG_FILE}" "${LOG_FILE}.old"
+    fi
 
-    exit 1
+    # Truncate logfile
+    printf "" >"${LOG_FILE}"
+
+    if [ $BACKGROUND -eq 1 ]; then
+      backup_bg_process &
+    else
+      backup
+    fi
   fi
 fi
 
-exit 0
+exit_handler 0
