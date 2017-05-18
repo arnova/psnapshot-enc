@@ -357,13 +357,13 @@ backup()
     for ITEM in `find "$SSHFS_MOUNT_PATH/" -maxdepth 1 -mindepth 1 -type d`; do
       NAME="$(basename "$ITEM")"
       DECODED_NAME="$(decode_item "$SOURCE_DIR" "$NAME")"
-      DIR_LIST="$DECODED_NAME $NAME\n$DIR_LIST"
+      DIR_LIST="${DECODED_NAME}:${NAME} ${DIR_LIST}"
     done
 
-    IFS=$EOL
+    IFS=' '
     for ITEM in `echo "$DIR_LIST" |sort -r |head -n3`; do
-      DECODED_NAME="$(echo "$ITEM" |cut -d' ' -f1)"
-      ENCODED_NAME="$(echo "$ITEM" |cut -d' ' -f2)"
+      DECODED_NAME="$(echo "$ITEM" |cut -d':' -f1)"
+      ENCODED_NAME="$(echo "$ITEM" |cut -d':' -f2)"
 
       case $DECODED_NAME in
         .sync                ) FOUND_SYNC=1
