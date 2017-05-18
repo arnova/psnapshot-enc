@@ -1,6 +1,6 @@
 #!/bin/sh
 
-MY_VERSION="0.30-BETA7"
+MY_VERSION="0.30-BETA8"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
 # Last update: May 18, 2017
@@ -124,13 +124,34 @@ umount_encfs()
 
 lock_enter()
 {
-  # We don't want multiple instances so we use a lockfile
-  if ( set -o noclobber; echo "$$" > "$LOCK_FILE") 2> /dev/null; then
-    # Setup int handler
-    trap 'ctrl_handler' INT TERM EXIT
+  local FAIL_COUNT=0
 
-    return 0 # Lock success
-  fi
+  while [ $FAIL_COUNT -lt 2 ]; do
+    # We don't want multiple instances so we use a lockfile
+    if ( set -o noclobber; echo "$$" > "$LOCK_FILE") 2> /dev/null; then
+      # Setup int handler
+      trap 'ctrl_handler' INT TERM EXIT
+
+      return 0 # Lock success
+    fi
+
+    # lock failed, check if the process is dead
+    local PID="$(cat "${LOCK_FILE}")"
+
+    # if cat isn't able to read the file, another instance is probably
+    # about to remove the lock -- exit, we're *still* locked
+    # Thanks to Grzegorz Wierzowiecki for pointing out this race condition on
+    # http://wiki.grzegorz.wierzowiecki.pl/code:mutex-in-bash
+    if [ $? = 0 ]; then
+      if ! kill -0 $PID &>/dev/null; then
+        # lock is stale, remove it and restart
+        echo "Removing stale lock of nonexistant PID ${PID}" >&2
+        rm -f "$LOCK_FILE"
+      fi
+    fi
+
+    FAIL_COUNT=$((FAIL_COUNT + 1))
+  done
 
   echo "Failed to acquire lockfile: $LOCK_FILE" >&2
   echo "Held by $(cat $LOCK_FILE)" >&2
