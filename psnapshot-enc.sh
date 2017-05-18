@@ -603,7 +603,7 @@ backup_bg_process()
       echo "$result"
     fi
 
-    if [ $retval -ne 0 ] || echo "$result" |grep -q -i -e error -e warning -e fail ]; then
+    if [ $retval -ne 0 ] || echo "$result" |grep -q -i -e error -e warning -e fail; then
       printf "Subject: psnapshot-enc FAILURE\n$result\n" |sendmail "$MAIL_TO"
     fi
 
