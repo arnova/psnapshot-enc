@@ -1,9 +1,9 @@
 #!/bin/sh
 
-MY_VERSION="0.30-BETA8"
+MY_VERSION="0.30-BETA9"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
-# Last update: May 18, 2017
+# Last update: May 19, 2017
 # (C) Copyright 2014-2017 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
@@ -323,8 +323,10 @@ backup()
       SOURCE_DIR="$ITEM"
     fi
 
-    DATE=`LC_ALL=C date +'%b %d %H:%M:%S'`
-    echo "* $DATE - Inspecting $SOURCE_DIR" |tee -a "$LOG_FILE"
+    if [ $VERBOSE -eq 1 ]; then
+      DATE=`LC_ALL=C date +'%b %d %H:%M:%S'`
+      echo "* $DATE - Inspecting $SOURCE_DIR" |tee -a "$LOG_FILE"
+    fi
 
     # Reverse encode local path
     if [ "$ENCFS_ENABLE" != "0" ]; then
@@ -367,14 +369,20 @@ backup()
 
       case $DECODED_NAME in
         .sync                ) FOUND_SYNC=1
-                               echo "* .sync ($ENCODED_NAME) folder found" |tee -a "$LOG_FILE"
+                               if [ $VERBOSE -eq 1 ]; then
+                                 echo "* .sync ($ENCODED_NAME) folder found" |tee -a "$LOG_FILE"
+                               fi
                                ;;
         snapshot_${CUR_DATE} ) FOUND_CURRENT=1
-                               echo "* $DECODED_NAME ($ENCODED_NAME) current date folder found" |tee -a "$LOG_FILE"
+                               if [ $VERBOSE -eq 1 ]; then
+                                 echo "* $DECODED_NAME ($ENCODED_NAME) current date folder found" |tee -a "$LOG_FILE"
+                               fi
                                ;;
         snapshot_*           ) if [ -z "$LAST_SNAPSHOT_ENC" ]; then
                                  LAST_SNAPSHOT_ENC="$ENCODED_NAME" # Use last snapshot as base
-                                 echo "* $DECODED_NAME ($ENCODED_NAME) previous date folder found" |tee -a "$LOG_FILE"
+                                 if [ $VERBOSE -eq 1 ]; then
+                                   echo "* $DECODED_NAME ($ENCODED_NAME) previous date folder found" |tee -a "$LOG_FILE"
+                                 fi
                                fi
                                ;;
       esac
@@ -431,14 +439,12 @@ backup()
     fi
     RSYNC_LINE="$RSYNC_LINE -- "${USER_AND_SERVER}:\"${TARGET_PATH}/$SUB_DIR/$(encode_item "$SOURCE_DIR" "$SNAPSHOT_DIR")/\"""
 
-    if [ -n "$EXCLUDE" ]; then
+    if [ -n "$EXCLUDE" -a $VERBOSE -eq 1 ]; then
       echo "* Exclude(s): $EXCLUDE" |tee -a "$LOG_FILE"
     fi
-#        echo "-> $RSYNC_LINE"
-
-    echo "* Looking for changes..." |tee -a "$LOG_FILE"
 
     if [ $VERBOSE -eq 1 ]; then
+      echo "* Looking for changes..." |tee -a "$LOG_FILE"
       echo "-> rsync -i --dry-run $RSYNC_LINE" |tee -a "$LOG_FILE"
     fi
 
@@ -455,7 +461,8 @@ backup()
       echo "ERROR: rsync failed ($retval)" |tee -a "$LOG_FILE"
       RET=1
     elif [ $change_count -gt 0 ]; then
-      echo "* $change_count change(s) detected -> syncing to remote..." |tee -a "$LOG_FILE"
+      DATE=`LC_ALL=C date +'%b %d %H:%M:%S'`
+      echo "* $DATE - $change_count change(s) detected in \"$SOURCE_DIR\" -> syncing to remote..." |tee -a "$LOG_FILE"
 
       RSYNC_LINE="-v --log-file="$LOG_FILE" $RSYNC_LINE"
 
@@ -485,13 +492,17 @@ backup()
         if [ $NO_ROTATE -eq 0 ]; then
           if [ $FOUND_CURRENT -ne 1 ]; then
             # Rename .sync to current date-snapshot
-            echo "* Renaming \"${SUB_DIR}/.sync\" to \"${SUB_DIR}/snapshot_${CUR_DATE}\"" |tee -a "$LOG_FILE"
+            if [ $VERBOSE -eq 1 ]; then
+              echo "* Renaming \"${SUB_DIR}/.sync\" to \"${SUB_DIR}/snapshot_${CUR_DATE}\"" |tee -a "$LOG_FILE"
+            fi
             if [ $DRY_RUN -eq 0 ]; then
               mv -- "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" ".sync")" "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" "snapshot_${CUR_DATE}")"
             fi
           fi
 
-          echo "* Setting permissions 750 for \"$SUB_DIR/snapshot_${CUR_DATE}\"" |tee -a "$LOG_FILE"
+          if [ $VERBOSE -eq 1 ]; then
+            echo "* Setting permissions 750 for \"$SUB_DIR/snapshot_${CUR_DATE}\"" |tee -a "$LOG_FILE"
+          fi
           if [ $DRY_RUN -eq 0 ]; then
             chmod 750 -- "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" "snapshot_${CUR_DATE}")"
 
@@ -499,7 +510,9 @@ backup()
             touch -- "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" "snapshot_${CUR_DATE}")"
           fi
         else
-          echo "* Setting permissions 750 for \"$SUB_DIR/.sync\"" |tee -a "$LOG_FILE"
+          if [ $VERBOSE -eq 1 ]; then
+            echo "* Setting permissions 750 for \"$SUB_DIR/.sync\"" |tee -a "$LOG_FILE"
+          fi
           if [ $DRY_RUN -eq 0 ]; then
             chmod 750 -- "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" ".sync")"
 
@@ -516,7 +529,9 @@ backup()
         #grep -v -e 'building file list' -e 'files to consider' "$LOG_FILE"
       fi
     else
-      echo "* No changes detected..." |tee -a "$LOG_FILE"
+      if [ $VERBOSE -eq 1 ]; then
+        echo "* No changes detected..." |tee -a "$LOG_FILE"
+      fi
     fi
 
     if [ "$ENCFS_ENABLE" != "0" ]; then
@@ -525,9 +540,11 @@ backup()
 
     umount_remote_sshfs;
 
-    DATE=`LC_ALL=C date +'%b %d %H:%M:%S'`
-    echo "* $DATE - Finished sync of $SOURCE_DIR" |tee -a "$LOG_FILE"
-    echo "**************************************************************" |tee -a "$LOG_FILE"
+    if [ $VERBOSE -eq 1 ]; then
+      DATE=`LC_ALL=C date +'%b %d %H:%M:%S'`
+      echo "* $DATE - Finished sync of $SOURCE_DIR" |tee -a "$LOG_FILE"
+      echo "**************************************************************" |tee -a "$LOG_FILE"
+    fi
   done
 
   lock_leave
