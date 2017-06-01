@@ -39,6 +39,24 @@ TAB=$(printf "\t")
 # Functions:
 ############
 
+log_error_line()
+{
+  printf "$1\n" >&2
+
+  DATE=`LC_ALL=C date +'%b %d %H:%M:%S'`
+  printf "$DATE - $1\n" >> "$LOG_FILE"
+}
+
+
+log_line()
+{
+  printf "$1\n"
+
+  DATE=`LC_ALL=C date +'%b %d %H:%M:%S'`
+  printf "$DATE - $1\n" >> "$LOG_FILE"
+}
+
+
 mount_remote_sshfs_rw()
 {
   local SUB_DIR="$1"
@@ -145,8 +163,7 @@ lock_enter()
     if [ $? = 0 ]; then
       if ! kill -0 $PID 2>/dev/null; then
         # lock is stale, remove it and restart
-        echo "WARNING: Removing stale lock of nonexistant PID ${PID}" >&2
-        echo "" >&2
+        log_error_line "WARNING: Removing stale lock of nonexistant PID ${PID}\n"
         rm -f "$LOCK_FILE"
       fi
     fi
@@ -154,8 +171,7 @@ lock_enter()
     FAIL_COUNT=$((FAIL_COUNT + 1))
   done
 
-  echo "ERROR: Failed to acquire lockfile: $LOCK_FILE. Held by PID $(cat $LOCK_FILE)" >&2
-  echo "" >&2
+  log_error_line "ERROR: Failed to acquire lockfile: $LOCK_FILE. Held by PID $(cat $LOCK_FILE)\n"
 
   return 1 # Lock failed
 }
@@ -324,8 +340,7 @@ backup()
     fi
 
     if [ $VERBOSE -eq 1 ]; then
-      DATE=`LC_ALL=C date +'%b %d %H:%M:%S'`
-      echo "* $DATE - Inspecting $SOURCE_DIR" |tee -a "$LOG_FILE"
+      log_line "Inspecting $SOURCE_DIR"
     fi
 
     # Reverse encode local path
@@ -333,8 +348,7 @@ backup()
       umount_encfs 2>/dev/null # First unmount
 
       if ! mount_rev_encfs_ro "$SOURCE_DIR"; then
-        echo "ERROR: ENCFS mount of \"$SOURCE_DIR\" on \"$ENCFS_MOUNT_PATH\" failed. Aborting backup for $SOURCE_DIR!" >&2
-        echo "ERROR: ENCFS mount of \"$SOURCE_DIR\" on \"$ENCFS_MOUNT_PATH\" failed. Aborting backup for $SOURCE_DIR!" |tee -a "$LOG_FILE"
+        log_error_line "ERROR: ENCFS mount of \"$SOURCE_DIR\" on \"$ENCFS_MOUNT_PATH\" failed. Aborting backup for $SOURCE_DIR!"
         RET=1
         continue
       fi
@@ -342,8 +356,7 @@ backup()
 
     umount_remote_sshfs 2>/dev/null # First unmount
     if ! mount_remote_sshfs_rw "$SUB_DIR"; then
-      echo "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}/$SUB_DIR\" on \"$SSHFS_MOUNT_PATH\" failed. Aborting backup for $SOURCE_DIR!" >&2
-      echo "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}/$SUB_DIR\" on \"$SSHFS_MOUNT_PATH\" failed. Aborting backup for $SOURCE_DIR!" |tee -a "$LOG_FILE"
+      log_error_line "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}/$SUB_DIR\" on \"$SSHFS_MOUNT_PATH\" failed. Aborting backup for $SOURCE_DIR!"
       RET=1
       continue
     fi
@@ -373,18 +386,18 @@ backup()
       case $DECODED_NAME in
         .sync                ) FOUND_SYNC=1
                                if [ $VERBOSE -eq 1 ]; then
-                                 echo "* .sync ($ENCODED_NAME) folder found" |tee -a "$LOG_FILE"
+                                 log_line ".sync ($ENCODED_NAME) folder found"
                                fi
                                ;;
         snapshot_${CUR_DATE} ) FOUND_CURRENT=1
                                if [ $VERBOSE -eq 1 ]; then
-                                 echo "* $DECODED_NAME ($ENCODED_NAME) current date folder found" |tee -a "$LOG_FILE"
+                                 log_line "$DECODED_NAME ($ENCODED_NAME) current date folder found"
                                fi
                                ;;
         snapshot_*           ) if [ -z "$LAST_SNAPSHOT_ENC" ]; then
                                  LAST_SNAPSHOT_ENC="$ENCODED_NAME" # Use last snapshot as base
                                  if [ $VERBOSE -eq 1 ]; then
-                                   echo "* $DECODED_NAME ($ENCODED_NAME) previous date folder found" |tee -a "$LOG_FILE"
+                                   log_line "$DECODED_NAME ($ENCODED_NAME) previous date folder found"
                                  fi
                                fi
                                ;;
@@ -443,12 +456,12 @@ backup()
     RSYNC_LINE="$RSYNC_LINE -- "${USER_AND_SERVER}:\"${TARGET_PATH}/$SUB_DIR/$(encode_item "$SOURCE_DIR" "$SNAPSHOT_DIR")/\"""
 
     if [ -n "$EXCLUDE" -a $VERBOSE -eq 1 ]; then
-      echo "* Exclude(s): $EXCLUDE" |tee -a "$LOG_FILE"
+      log_line "Exclude(s): $EXCLUDE"
     fi
 
     if [ $VERBOSE -eq 1 ]; then
-      echo "* Looking for changes..." |tee -a "$LOG_FILE"
-      echo "-> rsync -i --dry-run $RSYNC_LINE" |tee -a "$LOG_FILE"
+      log_line "Looking for changes..."
+      log_line "-> rsync -i --dry-run $RSYNC_LINE"
     fi
 
     # Need to unset IFS for commandline parse to work properly
@@ -460,12 +473,10 @@ backup()
     change_count="$(echo "$result" |grep -v -e ' ./$' -e '^skipping non-regular file' |wc -l)"
 
     if [ $retval -ne 0 ]; then
-      echo "ERROR: rsync failed ($retval)" >&2
-      echo "ERROR: rsync failed ($retval)" |tee -a "$LOG_FILE"
+      log_error_line "ERROR: rsync failed ($retval)"
       RET=1
     elif [ $change_count -gt 0 ]; then
-      DATE=`LC_ALL=C date +'%b %d %H:%M:%S'`
-      echo "* $DATE - $change_count change(s) detected in \"$SOURCE_DIR\" -> syncing to remote..." |tee -a "$LOG_FILE"
+      log_line "$change_count change(s) detected in \"$SOURCE_DIR\" -> syncing to remote..."
 
       RSYNC_LINE="-v --log-file="$LOG_FILE" $RSYNC_LINE"
 
@@ -478,7 +489,7 @@ backup()
       fi
 
       if [ $VERBOSE -eq 1 ]; then
-        echo "-> rsync $RSYNC_LINE" |tee -a "$LOG_FILE"
+        log_line "-> rsync $RSYNC_LINE"
       fi
 
       if [ $DECODE -eq 0 ]; then
@@ -493,8 +504,7 @@ backup()
 
       if [ $retval -eq 0 ]; then
         if ! mount_remote_sshfs_rw "$SUB_DIR"; then
-          echo "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}/$SUB_DIR\" on \"$SSHFS_MOUNT_PATH\" failed. Unable to finish backup for $SOURCE_DIR!" >&2
-          echo "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}/$SUB_DIR\" on \"$SSHFS_MOUNT_PATH\" failed. Unable to finish backup for $SOURCE_DIR!" |tee -a "$LOG_FILE"
+          log_error_line "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}/$SUB_DIR\" on \"$SSHFS_MOUNT_PATH\" failed. Unable to finish backup for $SOURCE_DIR!"
           RET=1
           continue
         fi
@@ -503,16 +513,18 @@ backup()
           if [ $FOUND_CURRENT -ne 1 ]; then
             # Rename .sync to current date-snapshot
             if [ $VERBOSE -eq 1 ]; then
-              echo "* Renaming \"${SUB_DIR}/.sync\" to \"${SUB_DIR}/snapshot_${CUR_DATE}\"" |tee -a "$LOG_FILE"
+              log_line "Renaming \"${SUB_DIR}/.sync\" to \"${SUB_DIR}/snapshot_${CUR_DATE}\""
             fi
+
             if [ $DRY_RUN -eq 0 ]; then
               mv -- "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" ".sync")" "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" "snapshot_${CUR_DATE}")"
             fi
           fi
 
           if [ $VERBOSE -eq 1 ]; then
-            echo "* Setting permissions 750 for \"$SUB_DIR/snapshot_${CUR_DATE}\"" |tee -a "$LOG_FILE"
+            log_line "Setting permissions 750 for \"$SUB_DIR/snapshot_${CUR_DATE}\""
           fi
+
           if [ $DRY_RUN -eq 0 ]; then
             chmod 750 -- "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" "snapshot_${CUR_DATE}")"
 
@@ -521,7 +533,7 @@ backup()
           fi
         else
           if [ $VERBOSE -eq 1 ]; then
-            echo "* Setting permissions 750 for \"$SUB_DIR/.sync\"" |tee -a "$LOG_FILE"
+            log_line "Setting permissions 750 for \"$SUB_DIR/.sync\""
           fi
           if [ $DRY_RUN -eq 0 ]; then
             chmod 750 -- "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" ".sync")"
@@ -533,16 +545,14 @@ backup()
         
         umount_remote_sshfs
       else
-        echo "ERROR: rsync failed" >&2
-        echo "ERROR: rsync failed" |tee -a "$LOG_FILE"
+        log_error_line "ERROR: rsync failed"
         RET=1
-        # TODO: Log to root
         #. Showing log file:" >&2
         #grep -v -e 'building file list' -e 'files to consider' "$LOG_FILE"
       fi
     else
       if [ $VERBOSE -eq 1 ]; then
-        echo "* No changes detected..." |tee -a "$LOG_FILE"
+        log_line "No changes detected..."
       fi
     fi
 
@@ -551,9 +561,8 @@ backup()
     fi
 
     if [ $VERBOSE -eq 1 ]; then
-      DATE=`LC_ALL=C date +'%b %d %H:%M:%S'`
-      echo "* $DATE - Finished sync of $SOURCE_DIR" |tee -a "$LOG_FILE"
-      echo "**************************************************************" |tee -a "$LOG_FILE"
+      log_line "Finished sync of $SOURCE_DIR"
+      log_line "**************************************************************"
     fi
   done
 
