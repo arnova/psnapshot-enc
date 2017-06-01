@@ -569,7 +569,7 @@ backup()
 
     if [ $VERBOSE -eq 1 ]; then
       log_line "Finished sync of $SOURCE_DIR"
-      log_line "**************************************************************" |tee -a "$LOG_FILE"
+      log_line "**************************************************************"
     fi
   done
 
