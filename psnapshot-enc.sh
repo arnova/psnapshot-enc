@@ -640,6 +640,10 @@ remote_init()
 backup_bg_process()
 {
   while true; do
+    # Sleep till the next sync
+    echo "* Sleeping $(($SLEEP_TIME / 60)) minutes..."
+    sleep $SLEEP_TIME
+
     result="$(backup 2>&1)"
     retval=$?
 
@@ -650,10 +654,6 @@ backup_bg_process()
     if [ $retval -ne 0 ] || echo "$result" |grep -q -i -e error -e warning -e fail; then
       printf "Subject: psnapshot-enc FAILURE\n\n$result\n" |sendmail "$MAIL_TO"
     fi
-
-    # Sleep till the next sync
-    echo "* Sleeping $(($SLEEP_TIME / 60)) minutes..."
-    sleep $SLEEP_TIME
   done
 }
 
