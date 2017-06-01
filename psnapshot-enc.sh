@@ -1,9 +1,9 @@
 #!/bin/sh
 
-MY_VERSION="0.30-BETA9"
+MY_VERSION="0.30-BETA10"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
-# Last update: May 19, 2017
+# Last update: Jun 1, 2017
 # (C) Copyright 2014-2017 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
@@ -362,6 +362,9 @@ backup()
       DIR_LIST="${DECODED_NAME}:${NAME} ${DIR_LIST}"
     done
 
+    # Unmount, else the connection may timeout before we use it again (below)
+    umount_remote_sshfs
+
     IFS=' '
     for ITEM in `echo "$DIR_LIST" |sort -r |head -n3`; do
       DECODED_NAME="$(echo "$ITEM" |cut -d':' -f1)"
@@ -489,6 +492,13 @@ backup()
       echo ""
 
       if [ $retval -eq 0 ]; then
+        if ! mount_remote_sshfs_rw "$SUB_DIR"; then
+          echo "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}/$SUB_DIR\" on \"$SSHFS_MOUNT_PATH\" failed. Unable to finish backup for $SOURCE_DIR!" >&2
+          echo "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}/$SUB_DIR\" on \"$SSHFS_MOUNT_PATH\" failed. Unable to finish backup for $SOURCE_DIR!" |tee -a "$LOG_FILE"
+          RET=1
+          continue
+        fi
+
         if [ $NO_ROTATE -eq 0 ]; then
           if [ $FOUND_CURRENT -ne 1 ]; then
             # Rename .sync to current date-snapshot
@@ -520,6 +530,8 @@ backup()
             touch -- "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" ".sync")"
           fi
         fi
+        
+        umount_remote_sshfs
       else
         echo "ERROR: rsync failed" >&2
         echo "ERROR: rsync failed" |tee -a "$LOG_FILE"
@@ -538,8 +550,6 @@ backup()
       umount_encfs;
     fi
 
-    umount_remote_sshfs;
-
     if [ $VERBOSE -eq 1 ]; then
       DATE=`LC_ALL=C date +'%b %d %H:%M:%S'`
       echo "* $DATE - Finished sync of $SOURCE_DIR" |tee -a "$LOG_FILE"
@@ -557,12 +567,12 @@ remote_init()
 {
   local RET=0
 
-  umount_encfs 2>/dev/null
-
   echo "* Using ENCFS6 config file: $ENCFS_CONF_FILE"
 
+  umount_encfs 2>/dev/null # Umount first, just in case
+
   # Test mount rev encfs
-  if mount_rev_encfs_ro; then
+  if mount_rev_encfs_rw; then
     echo "* Done. Don't forget to backup your config file ($ENCFS_CONF_FILE)!"
     echo ""
     echo "You should now probably generate + setup SSH keys (if not done already)"
@@ -572,6 +582,7 @@ remote_init()
   fi
 
   echo ""
+  
   umount_encfs;
 
   IFS=' '
