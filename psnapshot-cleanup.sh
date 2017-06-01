@@ -142,6 +142,19 @@ sanity_check()
 }
 
 
+show_help()
+{
+  echo "Usage: psnapshot-cleanup.sh [options]" >&2
+  echo "" >&2
+  echo "Options:" >&2
+  echo "--help|-h                   - Print this help" >&2
+  echo "--test|--dry-run            - Only show what would be performed (test run)" >&2
+  echo "--verbose                   - Be verbose with displaying info" >&2
+  echo "--conf|-c={config_file}     - Specify alternate configuration file (default=$CONF_FILE)" >&2
+  echo ""
+}
+
+
 process_commandline_and_load_conf()
 {
   # Set environment variables to default
@@ -219,6 +232,7 @@ process_commandline_and_load_conf()
     VERBOSE="$OPT_VERBOSE"
   fi
 }
+
 
 # Mainline:
 ###########

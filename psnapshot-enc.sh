@@ -25,6 +25,7 @@ MY_VERSION="0.30-BETA10"
 
 # Set some defaults. May be overriden by conf or commandline options
 CONF_FILE="$HOME/.psnapshot-enc.conf"
+VERBOSE=0
 SSH_CIPHER="arcfour"
 ENCFS_CONF_FILE="$HOME/.encfs6.xml"
 SLEEP_TIME=900
@@ -41,18 +42,18 @@ TAB=$(printf "\t")
 
 log_error_line()
 {
-  printf "$1\n" >&2
-
   DATE=`LC_ALL=C date +'%b %d %H:%M:%S'`
+
+  printf "$DATE - $1\n" >&2
   printf "$DATE - $1\n" >> "$LOG_FILE"
 }
 
 
 log_line()
 {
-  printf "$1\n"
-
   DATE=`LC_ALL=C date +'%b %d %H:%M:%S'`
+
+  printf "$DATE - $1\n"
   printf "$DATE - $1\n" >> "$LOG_FILE"
 }
 
@@ -742,8 +743,8 @@ show_help()
   echo "--mountrw={remote_dir}      - Mount remote sshfs+encfs backup folder (read-write)" >&2
   echo "--umount                    - Umount remote sshfs+encfs filesystem" >&2
   echo "--logview={log_file}        - View (decoded) log file" >&2
-  echo "--conf|-c={config_file}     - Specify alternate configuration file (default=~/.psnapshot.conf)" >&2
-  echo "--cipher={cipher}           - Specify SSH cipher (default=arcfour)" >&2
+  echo "--conf|-c={config_file}     - Specify alternate configuration file (default=$CONF_FILE)" >&2
+  echo "--cipher={cipher}           - Specify SSH cipher (default=$SSH_CIPHER)" >&2
   echo ""
 }
 
