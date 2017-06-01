@@ -98,7 +98,7 @@ mount_remote_encfs_ro()
 umount_remote_encfs()
 {
   fusermount -u "$ENCFS_MOUNT_PATH"
-  umount_remote_sshfs;
+  umount_remote_sshfs
 }
 
 
@@ -336,7 +336,7 @@ backup()
         echo "ERROR: ENCFS mount of \"$SOURCE_DIR\" on \"$ENCFS_MOUNT_PATH\" failed. Aborting backup for $SOURCE_DIR!" >&2
         echo "ERROR: ENCFS mount of \"$SOURCE_DIR\" on \"$ENCFS_MOUNT_PATH\" failed. Aborting backup for $SOURCE_DIR!" |tee -a "$LOG_FILE"
         RET=1
-        continue;
+        continue
       fi
     fi
 
@@ -345,7 +345,7 @@ backup()
       echo "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}/$SUB_DIR\" on \"$SSHFS_MOUNT_PATH\" failed. Aborting backup for $SOURCE_DIR!" >&2
       echo "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}/$SUB_DIR\" on \"$SSHFS_MOUNT_PATH\" failed. Aborting backup for $SOURCE_DIR!" |tee -a "$LOG_FILE"
       RET=1
-      continue;
+      continue
     fi
 
     # Look for already existing snapshot directories
@@ -547,7 +547,7 @@ backup()
     fi
 
     if [ "$ENCFS_ENABLE" != "0" ]; then
-      umount_encfs;
+      umount_encfs
     fi
 
     if [ $VERBOSE -eq 1 ]; then
@@ -583,7 +583,7 @@ remote_init()
 
   echo ""
   
-  umount_encfs;
+  umount_encfs
 
   IFS=' '
   for ITEM in $BACKUP_DIRS; do
@@ -602,7 +602,7 @@ remote_init()
     if ! mount_remote_sshfs_rw; then
       echo "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}\" on \"$SSHFS_MOUNT_PATH\" failed!" >&2
       RET=1
-      continue;
+      continue
     fi
 
     # Create remote directory 
@@ -611,7 +611,7 @@ remote_init()
     elif ! mkdir -p -- "$SSHFS_MOUNT_PATH/$SUB_DIR"; then
       echo "ERROR: Unable to create remote target directory \"(${SSHFS_MOUNT_PATH}/)$SUB_DIR}\"!" >&2
       RET=1
-      continue;
+      continue
     fi
 
     umount_remote_sshfs
@@ -926,7 +926,7 @@ echo ""
 
 process_commandline_and_load_conf $*;
 
-sanity_check;
+sanity_check
 
 if [ -z "$ENCFS_PASSWORD" -a "$UMOUNT" = "0" ]; then
   printf "* No password in config file. Enter ENCFS password: "
@@ -950,7 +950,7 @@ else
     fi
 
     echo "* Unmounting SSHFS/ENCFS filesystems"
-    umount_remote_encfs;
+    umount_remote_encfs
     echo ""
   elif [ -n "$MOUNT_RO_PATH" ]; then
     if ! lock_enter; then
