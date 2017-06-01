@@ -23,6 +23,9 @@ MY_VERSION="0.20-ALPHA1"
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 # ---------------------------------------------------------------------------------------------------------------------- 
 
+# Set some defaults. May be overriden by conf or commandline options
+CONF_FILE="/etc/psnapshot-cleanup.conf"
+
 EOL='
 '
 TAB=$(printf "\t")
@@ -65,13 +68,22 @@ cleanup()
 
       # Skip the newest (.sync and newest date)
       if [ $COUNT -gt 1 ]; then
-        chown 0:0 "$SUBDIR"
-        chmod 755 "$SUBDIR"
+        if [ $DRYRUN -eq 0 ]; then
+          chown 0:0 "$SUBDIR"
+          chmod 755 "$SUBDIR"
+        else
+          echo "chown 0:0 $SUBDIR"
+          echo "chmod 755 $SUBDIR"
+        fi
 
         IFS=$EOL
         find "$SUBDIR/" ! -uid 0 ! -type l |while read FN; do
           # Make files readonly
-          chmod -w "$FN"
+          if [ $DRYRUN -eq 0 ]; then
+            chmod -w "$FN"
+          else
+            echo "chmod -w $FN"
+          fi
         done
 
         MTIME_YEAR="$(echo "$MTIME" |cut -f1 -d'-')"
@@ -107,7 +119,11 @@ cleanup()
 
         if [ $KEEP -eq 0 ]; then
           echo "REMOVE $MTIME: $DIR_NAME"
-          rm -rf "$SUBDIR"
+          if [ $DRYRUN -eq 0 ]; then
+            rm -rf "$SUBDIR"
+          else
+            echo "rm -rf $SUBDIR"
+          fi
         fi
       fi
     done
@@ -118,27 +134,98 @@ cleanup()
 
 sanity_check()
 {
-  if [ -z "$SNAPSHOT_DIRS" -o -z "$DAILY_KEEP" -o -z "$MONTHLY_KEEP" -z "$YEARLY_COUNT" ]; then
-    echo "ERROR: Missing config options" >&2
+  if [ -z "$SNAPSHOT_DIRS" -o -z "$DAILY_KEEP" -o -z "$MONTHLY_KEEP" -o -z "$YEARLY_COUNT" ]; then
+    echo "ERROR: Missing config options in $CONF_FILE" >&2
     echo "" >&2
     exit 1
   fi
 }
 
 
+process_commandline_and_load_conf()
+{
+  # Set environment variables to default
+  DRY_RUN=0
+
+  OPT_VERBOSE=0
+  OPT_CONF_FILE=""
+
+  # Check arguments
+  while [ -n "$1" ]; do
+    ARG="$1"
+    ARGNAME=`echo "$ARG" |cut -d= -f1`
+    ARGVAL=`echo "$ARG" |cut -d= -f2 -s`
+
+    case "$ARGNAME" in
+              --conf|-c) if [ -z "$ARGVAL" ]; then
+                           echo "ERROR: Bad command syntax with argument \"$ARG\"" >&2
+                           show_help
+                           exit 1
+                         else
+                           OPT_CONF_FILE="$ARGVAL"
+                         fi
+                         ;;
+       --dry-run|--test) DRY_RUN=1;;
+           --verbose|-v) OPT_VERBOSE=1;;
+              --help|-h) show_help;
+                         exit 0
+                         ;;
+                     --) shift
+                         # Check for remaining arguments
+                         if [ -n "$*" ]; then
+                           if [ -z "$OPT_CONF_FILE" ]; then
+                             OPT_CONF_FILE="$*"
+                           else
+                             echo "ERROR: Bad command syntax with argument \"$*\"" >&2
+                             show_help
+                             exit 1
+                           fi
+                         fi
+                         break # We're done
+                         ;;
+                     -*) echo "ERROR: Bad argument \"$ARG\"" >&2
+                         show_help
+                         exit 1
+                         ;;
+                      *) if [ -z "$OPT_CONF_FILE" ]; then
+                           OPT_CONF_FILE="$ARG"
+                         else
+                           echo "ERROR: Bad command syntax with argument \"$ARG\"" >&2
+                           show_help
+                           exit 1
+                         fi
+                         ;;
+    esac
+
+    shift # Next argument
+  done
+
+  # Fallback to default in case it's not specified
+  if [ -n "$OPT_CONF_FILE" ]; then
+    CONF_FILE="$OPT_CONF_FILE"
+  fi
+
+  if [ -z "$CONF_FILE" -o ! -e "$CONF_FILE" ]; then
+    echo "ERROR: Missing config file ($CONF_FILE)!" >&2
+    echo "" >&2
+    exit 1
+  fi
+
+  # Source config file
+  . "$CONF_FILE"
+
+  # Special handling for verbose
+  if [ "$VERBOSE" != "1" ]; then
+    VERBOSE="$OPT_VERBOSE"
+  fi
+}
+
 # Mainline:
 ###########
 echo "psnapshot-enc cleanup v$MY_VERSION - (C) Copyright 2014-2017 by Arno van Amersfoort"
 echo ""
 
-if [ -z "$CONF_FILE" -o ! -e "$CONF_FILE" ]; then
-  echo "ERROR: Missing config file ($CONF_FILE)!" >&2
-  echo "" >&2
-  exit 1
-fi
-
-# Source config file
-. "$CONF_FILE"
+process_commandline_and_load_conf $*
 
 sanity_check
 
