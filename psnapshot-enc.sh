@@ -358,7 +358,7 @@ backup()
     fi
 
     umount_remote_sshfs 2>/dev/null # First unmount
-  
+
     result="$(mount_remote_sshfs_rw "$SUB_DIR" 2>&1)"
     if [ $? -ne 0 ]; then
       log_error_line "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}/$SUB_DIR\" on \"$SSHFS_MOUNT_PATH\" failed! Aborting backup for $SOURCE_DIR"
@@ -550,7 +550,7 @@ backup()
             touch -- "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" ".sync")"
           fi
         fi
-        
+
         umount_remote_sshfs
       else
         log_error_line "ERROR: rsync failed"
@@ -599,7 +599,7 @@ remote_init()
   fi
 
   echo ""
-  
+
   umount_encfs
 
   IFS=' '
@@ -640,6 +640,8 @@ remote_init()
 
 backup_bg_process()
 {
+  log_line "Starting background thread and waiting for changes..."
+
   while true; do
     # Sleep till the next sync
     echo "* Sleeping $(($SLEEP_TIME / 60)) minutes..."
