@@ -67,9 +67,9 @@ mount_remote_sshfs_rw()
   fi
 
   if [ $(id -u) -eq 0 ]; then
-    sshfs "${USER_AND_SERVER}:${TARGET_PATH}/$SUB_DIR" "$SSHFS_MOUNT_PATH" -o Cipher="$SSH_CIPHER",nonempty,delay_connect
+    sshfs "${USER_AND_SERVER}:${TARGET_PATH}/$SUB_DIR" "$SSHFS_MOUNT_PATH" -o Cipher="$SSH_CIPHER",nonempty
   else
-    sshfs "${USER_AND_SERVER}:${TARGET_PATH}/$SUB_DIR" "$SSHFS_MOUNT_PATH" -o Cipher="$SSH_CIPHER",nonempty,delay_connect,uid="$(id -u)",gid="$(id -g)"
+    sshfs "${USER_AND_SERVER}:${TARGET_PATH}/$SUB_DIR" "$SSHFS_MOUNT_PATH" -o Cipher="$SSH_CIPHER",nonempty,uid="$(id -u)",gid="$(id -g)"
   fi
 }
 
