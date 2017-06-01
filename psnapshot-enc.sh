@@ -347,16 +347,21 @@ backup()
     if [ "$ENCFS_ENABLE" != "0" ]; then
       umount_encfs 2>/dev/null # First unmount
 
-      if ! mount_rev_encfs_ro "$SOURCE_DIR"; then
-        log_error_line "ERROR: ENCFS mount of \"$SOURCE_DIR\" on \"$ENCFS_MOUNT_PATH\" failed. Aborting backup for $SOURCE_DIR!"
+      result="$(mount_rev_encfs_ro "$SOURCE_DIR" 2>&1)"
+      if [ $? -ne 0 ]; then
+        log_error_line "ERROR: ENCFS mount of \"$SOURCE_DIR\" on \"$ENCFS_MOUNT_PATH\" failed! Aborting backup for $SOURCE_DIR"
+        log_error_line "$result"
         RET=1
         continue
       fi
     fi
 
     umount_remote_sshfs 2>/dev/null # First unmount
-    if ! mount_remote_sshfs_rw "$SUB_DIR"; then
-      log_error_line "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}/$SUB_DIR\" on \"$SSHFS_MOUNT_PATH\" failed. Aborting backup for $SOURCE_DIR!"
+  
+    result="$(mount_remote_sshfs_rw "$SUB_DIR" 2>&1)"
+    if [ $? -ne 0 ]; then
+      log_error_line "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}/$SUB_DIR\" on \"$SSHFS_MOUNT_PATH\" failed! Aborting backup for $SOURCE_DIR"
+      log_error_line "$result"
       RET=1
       continue
     fi
@@ -503,8 +508,10 @@ backup()
       echo ""
 
       if [ $retval -eq 0 ]; then
-        if ! mount_remote_sshfs_rw "$SUB_DIR"; then
+        result="$(mount_remote_sshfs_rw "$SUB_DIR" 2>&1)"
+        if [ $? -ne 0 ]; then
           log_error_line "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}/$SUB_DIR\" on \"$SSHFS_MOUNT_PATH\" failed. Unable to finish backup for $SOURCE_DIR!"
+          log_error_line "$result"
           RET=1
           continue
         fi
@@ -562,7 +569,7 @@ backup()
 
     if [ $VERBOSE -eq 1 ]; then
       log_line "Finished sync of $SOURCE_DIR"
-      log_line "**************************************************************"
+      log_line "**************************************************************" |tee -a "$LOG_FILE"
     fi
   done
 
