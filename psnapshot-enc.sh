@@ -632,7 +632,7 @@ backup_bg_process()
     fi
 
     if [ $retval -ne 0 ] || echo "$result" |grep -q -i -e error -e warning -e fail; then
-      printf "Subject: psnapshot-enc FAILURE\n$result\n" |sendmail "$MAIL_TO"
+      printf "Subject: psnapshot-enc FAILURE\n\n$result\n" |sendmail "$MAIL_TO"
     fi
 
     # Sleep till the next sync
