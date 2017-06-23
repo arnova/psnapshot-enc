@@ -1,9 +1,9 @@
 #!/bin/sh
 
-MY_VERSION="0.30-BETA10"
+MY_VERSION="0.30-BETA11"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
-# Last update: Jun 1, 2017
+# Last update: Jun 23, 2017
 # (C) Copyright 2014-2017 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
@@ -28,7 +28,7 @@ CONF_FILE="$HOME/.psnapshot-enc.conf"
 VERBOSE=0
 SSH_CIPHER="arcfour"
 ENCFS_CONF_FILE="$HOME/.encfs6.xml"
-SLEEP_TIME=900
+SLEEP_TIME=240
 ENCFS_MOUNT_PATH="/mnt/encfs"
 SSHFS_MOUNT_PATH="/mnt/sshfs"
 LOCK_FILE="/tmp/.psnapshot-enc.lock"
@@ -642,11 +642,8 @@ backup_bg_process()
 {
   log_line "Starting background thread and waiting for changes..."
 
+  sleep 60 # Make sure system is done booting
   while true; do
-    # Sleep till the next sync
-    echo "* Sleeping $(($SLEEP_TIME / 60)) minutes..."
-    sleep $SLEEP_TIME
-
     result="$(backup 2>&1)"
     retval=$?
 
@@ -657,6 +654,10 @@ backup_bg_process()
     if [ $retval -ne 0 ] || echo "$result" |grep -q -i -e error -e warning -e fail; then
       printf "Subject: psnapshot-enc FAILURE\n\n$result\n" |sendmail "$MAIL_TO"
     fi
+
+    # Sleep till the next sync
+    echo "* Sleeping $(($SLEEP_TIME / 60)) minutes..."
+    sleep $(($SLEEP_TIME / 60))
   done
 }
 
@@ -745,8 +746,8 @@ show_help()
   echo "--mountrw={remote_dir}      - Mount remote sshfs+encfs backup folder (read-write)" >&2
   echo "--umount                    - Umount remote sshfs+encfs filesystem" >&2
   echo "--logview={log_file}        - View (decoded) log file" >&2
-  echo "--conf|-c={config_file}     - Specify alternate configuration file (default=$CONF_FILE)" >&2
-  echo "--cipher={cipher}           - Specify SSH cipher (default=$SSH_CIPHER)" >&2
+  echo "--conf|-c={config_file}     - Specify alternate configuration file (default=${CONF_FILE})" >&2
+  echo "--cipher={cipher}           - Specify SSH cipher (default=${SSH_CIPHER})" >&2
   echo ""
 }
 
@@ -1055,3 +1056,4 @@ fi
 lock_leave
 
 exit 0
+
