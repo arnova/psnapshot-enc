@@ -3,7 +3,7 @@
 MY_VERSION="0.30-BETA11"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
-# Last update: Jun 23, 2017
+# Last update: Jun 25, 2017
 # (C) Copyright 2014-2017 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
@@ -32,6 +32,7 @@ SLEEP_TIME=240
 ENCFS_MOUNT_PATH="/mnt/encfs"
 SSHFS_MOUNT_PATH="/mnt/sshfs"
 LOCK_FILE="/tmp/.psnapshot-enc.lock"
+LOG_FILE="/var/log/psnapshot-enc.log"
 
 EOL='
 '
