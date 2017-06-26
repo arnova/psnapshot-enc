@@ -1,9 +1,9 @@
 #!/bin/sh
 
-MY_VERSION="0.30-BETA11"
+MY_VERSION="0.30-BETA12"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
-# Last update: Jun 25, 2017
+# Last update: Jun 26, 2017
 # (C) Copyright 2014-2017 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
@@ -32,7 +32,6 @@ SLEEP_TIME=240
 ENCFS_MOUNT_PATH="/mnt/encfs"
 SSHFS_MOUNT_PATH="/mnt/sshfs"
 LOCK_FILE="/tmp/.psnapshot-enc.lock"
-LOG_FILE="/var/log/psnapshot-enc.log"
 
 EOL='
 '
@@ -45,8 +44,8 @@ log_error_line()
 {
   DATE=`LC_ALL=C date +'%b %d %H:%M:%S'`
 
-  printf "$DATE - $1\n" >&2
-  printf "$DATE - $1\n" >> "$LOG_FILE"
+  printf "$DATE - %s\n" "$1" >&2
+  printf "$DATE - %s\n" "$1" >> "$LOG_FILE"
 }
 
 
@@ -54,8 +53,8 @@ log_line()
 {
   DATE=`LC_ALL=C date +'%b %d %H:%M:%S'`
 
-  printf "$DATE - $1\n"
-  printf "$DATE - $1\n" >> "$LOG_FILE"
+  printf "$DATE - %s\n" "$1"
+  printf "$DATE - %s\n" "$1" >> "$LOG_FILE"
 }
 
 
@@ -165,7 +164,7 @@ lock_enter()
     if [ $? = 0 ]; then
       if ! kill -0 $PID 2>/dev/null; then
         # lock is stale, remove it and restart
-        log_error_line "WARNING: Removing stale lock of nonexistant PID ${PID}\n"
+        log_error_line "WARNING: Removing stale lock of nonexistant PID ${PID}"
         rm -f "$LOCK_FILE"
       fi
     fi
@@ -173,7 +172,7 @@ lock_enter()
     FAIL_COUNT=$((FAIL_COUNT + 1))
   done
 
-  log_error_line "ERROR: Failed to acquire lockfile: $LOCK_FILE. Held by PID $(cat $LOCK_FILE)\n"
+  log_error_line "ERROR: Failed to acquire lockfile: $LOCK_FILE. Held by PID $(cat $LOCK_FILE)"
 
   return 1 # Lock failed
 }
@@ -248,11 +247,20 @@ decode_item()
 
 rsync_decode_path()
 {
-  local SUB_DIR
-  local FIRST=1
-  local RSYNC_PATH="$(echo "$2" |sed -e 's!^\"!!' -e 's!\"$!!')"
+  local SOURCE_PATH="$1"
+  local TARGET_BASE_PATH="$2"
+  local RSYNC_PATH="$(echo "$3" |sed -e 's!^\"!!' -e 's!\"$!!')"
+
+  # Special handling for paths containing unencoded base target path
+  if echo "$RSYNC_PATH" |grep -q "^$TARGET_BASE_PATH/"; then
+    printf "$TARGET_BASE_PATH/"
+    RSYNC_PATH="$(echo "$RSYNC_PATH" |sed s!"^$TARGET_BASE_PATH/"!!)"
+  fi
+
+#  echo "DEBIG:$TARGET_BASE_PATH*" >&2
 
   # Split full path (/ separator)
+  FIRST=1 
   IFS='/'
   for SUB_DIR in $RSYNC_PATH; do
     if [ $FIRST -eq 0 ] || echo "$RSYNC_PATH" |grep -q '^/'; then
@@ -270,19 +278,29 @@ rsync_decode_path()
 
 rsync_parse()
 {
+  local SOURCE_PATH="$1"
+  local TARGET_BASE_PATH="$2"
+
   # NOTE: This is currently really slow due to encfsctl decode performing really bad
   IFS=$EOL
   while read LINE; do
+#    echo "DEBUG PARSE: $LINE" >&2
     case "$LINE" in
-                          "send: "*) echo "send: $(decode_item "$1" $(echo "$LINE" |cut -f1 -d' ' --complement))"
+                          "send: "*) echo "send: $(rsync_deoode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1 -d' ' --complement)")"
                                      ;;
-                          "del.: "*) echo "del.: $(decode_item "$1" $(echo "$LINE" |cut -f1 -d' ' --complement))"
+                          "del.: "*) echo "del.: $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1 -d' ' --complement)")"
                                      ;;
-      "skipping non-regular file "*) echo "skipping non-regular file $(rsync_decode_path "$1" $(echo "$LINE" |cut -f1,2,3 -d' ' --complement))"
+      "skipping non-regular file "*) echo "skipping non-regular file $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1,2,3 -d' ' --complement)")"
                                      ;;
-              "created directory "*) echo "created directory: $(decode_item "$1" $(echo "$LINE" |cut -f1,2 -d' ' --complement))"
+              "created directory "*) echo "created directory $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1,2 -d' ' --complement)")"
                                      ;;
-                                  *) echo "$LINE"
+                                  *) ITEM_CHANGE_CHECK="$(echo "$LINE" |cut -d' ' -f1)"
+                                     if echo "$ITEM_CHANGE_CHECK" |grep -E -q '^[c<\.][fdL][\.\+\?cst]+'; then
+                                       # Itemized line:
+                                       echo "$ITEM_CHANGE_CHECK $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1 -d' ' --complement)")"
+                                     else
+                                       echo "$LINE"
+                                     fi
                                      ;;
     esac
   done
@@ -468,7 +486,7 @@ backup()
 
     if [ $VERBOSE -eq 1 ]; then
       log_line "Looking for changes..."
-      log_line "-> rsync -i --dry-run $RSYNC_LINE"
+#      log_line "-> rsync -i --dry-run $RSYNC_LINE"
     fi
 
     # Need to unset IFS for commandline parse to work properly
@@ -483,7 +501,8 @@ backup()
       log_error_line "ERROR: rsync failed ($retval)"
       RET=1
     elif [ $change_count -gt 0 ]; then
-      log_line "$change_count change(s) detected in \"$SOURCE_DIR\" -> syncing to remote..."
+      # Warning: Do NOT chenge the line below since it's used by --logview!
+      log_line "$change_count change(s) detected in source-path \"$SOURCE_DIR\" -> syncing to target-path \"$TARGET_PATH/$SUB_DIR\"..."
 
       RSYNC_LINE="-v --log-file="$LOG_FILE" $RSYNC_LINE"
 
@@ -495,15 +514,15 @@ backup()
         RSYNC_LINE="--dry-run $RSYNC_LINE"
       fi
 
-      if [ $VERBOSE -eq 1 ]; then
-        log_line "-> rsync $RSYNC_LINE"
-      fi
+#      if [ $VERBOSE -eq 1 ]; then
+#        log_line "-> rsync $RSYNC_LINE"
+#      fi
 
       if [ $DECODE -eq 0 ]; then
         eval rsync $RSYNC_LINE 2>&1
         retval=$?
       else
-        eval rsync $RSYNC_LINE 2>&1 |rsync_parse "$SOURCE_DIR"
+        eval rsync $RSYNC_LINE 2>&1 |rsync_parse "$SOURCE_DIR" "$TARGET_PATH/$SUB_DIR"
         retval=$?
       fi
 
@@ -666,7 +685,8 @@ backup_bg_process()
 view_log_file()
 {
   local LOG_FILE="$1"
-  local SOURCE_DIR
+  local SOURCE_PATH
+  local TARGET_BASE_PATH
 
   echo "Viewing log file \"$LOG_FILE\":"
 
@@ -681,21 +701,21 @@ view_log_file()
     if echo "$LINE" |grep -E -q '\[[0-9]+\]'; then
       LINE_STRIPPED="$(echo "$LINE" |cut -d' ' -f1,2,3 --complement)"
 
-      # Now the first item is the rsync code
-      ITEM_CHANGE_CHECK="$(echo "$LINE_STRIPPED" |cut -d' ' -f1)"
-
       # Simple check to determine whether this is an itemized list of changes
-      if [ -n "$SOURCE_DIR" ] && echo "$ITEM_CHANGE_CHECK" |grep -E -q '^[c<\.][fdL][\.\+\?cst]+'; then
-        printf "$(echo "$LINE" |cut -d' ' -f1,2,3,4) "
-        echo "$(rsync_decode_path "$SOURCE_DIR" $(echo "$LINE_STRIPPED" |cut -d' ' -f1 --complement))"
+      if [ -n "$SOURCE_PATH" ]; then
+        PREFIX="$(echo "$LINE" |cut -d' ' -f1,2,3)"
+        PARSE="$(echo "$LINE" |cut -d' ' -f1,2,3 --complement)"
+        echo "$PREFIX $(echo "$PARSE" |rsync_parse "$SOURCE_PATH" "$TARGET_BASE_PATH")"
       else
         # Just print the line
         echo "$LINE"
       fi
     else
       # Get SOURCE_DIR from log
-      if echo "$LINE" |grep -E -q '^\* .* Inspecting '; then
-        SOURCE_DIR="$(echo "$LINE" |sed -e 's!^\*.*Inspecting !!' -e 's!\.*$!!')"
+      if echo "$LINE" |grep -E -q '^.* - [0-9]+ change\(s\) detected in '; then
+        # Get source/target info from this line
+        SOURCE_PATH="$(echo "$LINE" |cut -d\" -f2)"
+        TARGET_BASE_PATH="$(echo "$LINE" |cut -d\" -f4)"
       fi
 
       echo "$LINE"
