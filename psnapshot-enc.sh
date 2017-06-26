@@ -257,8 +257,6 @@ rsync_decode_path()
     RSYNC_PATH="$(echo "$RSYNC_PATH" |sed s!"^$TARGET_BASE_PATH/"!!)"
   fi
 
-#  echo "DEBIG:$TARGET_BASE_PATH*" >&2
-
   # Split full path (/ separator)
   FIRST=1 
   IFS='/'
@@ -284,7 +282,6 @@ rsync_parse()
   # NOTE: This is currently really slow due to encfsctl decode performing really bad
   IFS=$EOL
   while read LINE; do
-#    echo "DEBUG PARSE: $LINE" >&2
     case "$LINE" in
                           "send: "*) echo "send: $(rsync_deoode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1 -d' ' --complement)")"
                                      ;;
@@ -676,8 +673,8 @@ backup_bg_process()
     fi
 
     # Sleep till the next sync
-    echo "* Sleeping $(($SLEEP_TIME / 60)) minutes..."
-    sleep $(($SLEEP_TIME / 60))
+    echo "* Sleeping $SLEEP_TIME minutes..."
+    sleep $(($SLEEP_TIME * 60))
   done
 }
 
