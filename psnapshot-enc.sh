@@ -1,6 +1,6 @@
 #!/bin/sh
 
-MY_VERSION="0.30-BETA12"
+MY_VERSION="0.30-BETA13"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
 # Last update: Jun 26, 2017
@@ -147,7 +147,7 @@ lock_enter()
 
   while [ $FAIL_COUNT -lt 2 ]; do
     # We don't want multiple instances so we use a lockfile
-    if ( set -o noclobber; echo "$$" > "$LOCK_FILE") 2> /dev/null; then
+    if ( set -o noclobber; sh -c 'echo $PPID' >"$LOCK_FILE") 2>/dev/null; then
       # Setup int handler
       trap 'ctrl_handler' INT TERM EXIT
 
@@ -1074,4 +1074,3 @@ fi
 lock_leave
 
 exit 0
-
