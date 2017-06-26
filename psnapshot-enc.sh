@@ -164,7 +164,7 @@ lock_enter()
     if [ $? = 0 ]; then
       if ! kill -0 $PID 2>/dev/null; then
         # lock is stale, remove it and restart
-        log_error_line "WARNING: Removing stale lock of nonexistant PID ${PID}"
+        echo "WARNING: Removing stale lock of nonexistant PID ${PID}" >&2
         rm -f "$LOCK_FILE"
       fi
     fi
@@ -172,7 +172,7 @@ lock_enter()
     FAIL_COUNT=$((FAIL_COUNT + 1))
   done
 
-  log_error_line "ERROR: Failed to acquire lockfile: $LOCK_FILE. Held by PID $(cat $LOCK_FILE)"
+  echo "ERROR: Failed to acquire lockfile: $LOCK_FILE. Held by PID $(cat $LOCK_FILE)" >&2
 
   return 1 # Lock failed
 }
