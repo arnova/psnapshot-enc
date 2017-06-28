@@ -757,7 +757,7 @@ show_help()
   echo "--init|-i                   - Init encfs (for the first time)" >&2
   echo "--test|--dry-run            - Only show what would be performed (test run)" >&2
   echo "--norotate                  - Don't rotate .sync to current date folder when done" >&2
-  echo "--decode                    - Decode encoded filesnames for display (slower!)" >&2
+  echo "--decode                    - Decode displayed encoded rsync filenames during sync (slower!)" >&2
   echo "--verbose                   - Be verbose with displaying info" >&2
   echo "--removelock|--rmlock       - Remove (stale) lock file" >&2
   echo "--background                - Background daemon mode" >&2
