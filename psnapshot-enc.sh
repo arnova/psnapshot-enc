@@ -284,7 +284,7 @@ rsync_parse()
   IFS=$EOL
   while read LINE; do
     case "$LINE" in
-                          "send: "*) echo "send: $(rsync_deoode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1 -d' ' --complement)")"
+                          "send: "*) echo "send: $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1 -d' ' --complement)")"
                                      ;;
                           "del.: "*) echo "del.: $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1 -d' ' --complement)")"
                                      ;;
