@@ -3,7 +3,7 @@
 MY_VERSION="0.30-BETA13"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
-# Last update: Jun 26, 2017
+# Last update: Jun 28, 2017
 # (C) Copyright 2014-2017 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
@@ -29,6 +29,7 @@ VERBOSE=0
 SSH_CIPHER="arcfour"
 ENCFS_CONF_FILE="$HOME/.encfs6.xml"
 SLEEP_TIME=240
+INITIAL_SLEEP_TIME=15
 ENCFS_MOUNT_PATH="/mnt/encfs"
 SSHFS_MOUNT_PATH="/mnt/sshfs"
 LOCK_FILE="/tmp/.psnapshot-enc.lock"
@@ -659,7 +660,7 @@ backup_bg_process()
 {
   log_line "Starting background thread and waiting for changes..."
 
-  sleep 60 # Make sure system is done booting
+  sleep $(($INITIAL_SLEEP_TIME * 60)) # Initial delay (default = 15 minutes)
   while true; do
     result="$(backup 2>&1)"
     retval=$?
