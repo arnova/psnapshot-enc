@@ -250,7 +250,7 @@ rsync_decode_path()
 {
   local SOURCE_PATH="$1"
   local TARGET_BASE_PATH="$2"
-  local RSYNC_PATH="$(echo "$3" |sed -e 's!^\"!!' -e 's!\"$!!')"
+  local RSYNC_PATH="$(echo "$3" |sed -e 's!^\"!!' -e 's!\"$!!' -e s'!^ *!!')"
 
   # Special handling for paths containing unencoded base target path
   if echo "$RSYNC_PATH" |grep -q "^$TARGET_BASE_PATH/"; then
@@ -259,7 +259,7 @@ rsync_decode_path()
   fi
 
   # Split full path (/ separator)
-  FIRST=1 
+  FIRST=1
   IFS='/'
   for SUB_DIR in $RSYNC_PATH; do
     if [ $FIRST -eq 0 ] || echo "$RSYNC_PATH" |grep -q '^/'; then
@@ -287,6 +287,8 @@ rsync_parse()
                           "send: "*) echo "send: $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1 -d' ' --complement)")"
                                      ;;
                           "del.: "*) echo "del.: $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1 -d' ' --complement)")"
+                                     ;;
+                      "*deleting "*) echo "*deleting: $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1 -d' ' --complement)")"
                                      ;;
       "skipping non-regular file "*) echo "skipping non-regular file $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1,2,3 -d' ' --complement)")"
                                      ;;
