@@ -1,9 +1,9 @@
 #!/bin/sh
 
-MY_VERSION="0.30-BETA13"
+MY_VERSION="0.30-BETA14"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
-# Last update: Jun 28, 2017
+# Last update: Jul 9, 2017
 # (C) Copyright 2014-2017 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
@@ -497,11 +497,16 @@ backup()
     # NOTE: Ignore root (eg. permission) changes with ' ./$' and non-regular files
     change_count="$(echo "$result" |grep -v -e ' ./$' -e '^skipping non-regular file' |wc -l)"
 
-    if [ $retval -ne 0 ]; then
+    if [ $retval -eq 24 ]; then
+      log_error_line "WARNING: rsync partial failure ($retval)"
+    elif [ $retval -ne 0 ]; then
       log_error_line "ERROR: rsync failed ($retval)"
-      RET=1
-    elif [ $change_count -gt 0 ]; then
-      # Warning: Do NOT chenge the line below since it's used by --logview!
+      change_count=0
+      RET=1 # Flag error
+    fi
+
+    if [ $change_count -gt 0 ]; then
+      # Warning: Do NOT change the line below since it's used by --logview!
       log_line "$change_count change(s) detected in source-path \"$SOURCE_DIR\" -> syncing to target-path \"$TARGET_PATH/$SUB_DIR\"..."
 
       RSYNC_LINE="-v --log-file="$LOG_FILE" $RSYNC_LINE"
@@ -528,55 +533,57 @@ backup()
 
       echo ""
 
+      if [ $retval -eq 24 ]; then
+        log_error_line "WARNING: rsync partial failure ($retval)"
+        retval=0 # Ignore this error
+      elif [ $retval -ne 0 ]; then
+        log_error_line "ERROR: rsync failed ($retval)"
+        RET=1 # Flag error
+      fi
+
       if [ $retval -eq 0 ]; then
         result="$(mount_remote_sshfs_rw "$SUB_DIR" 2>&1)"
         if [ $? -ne 0 ]; then
           log_error_line "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}/$SUB_DIR\" on \"$SSHFS_MOUNT_PATH\" failed. Unable to finish backup for $SOURCE_DIR!"
           log_error_line "$result"
           RET=1
-          continue
-        fi
+        else
+          if [ $NO_ROTATE -eq 0 ]; then
+            if [ $FOUND_CURRENT -ne 1 ]; then
+              # Rename .sync to current date-snapshot
+              if [ $VERBOSE -eq 1 ]; then
+                log_line "Renaming \"${SUB_DIR}/.sync\" to \"${SUB_DIR}/snapshot_${CUR_DATE}\""
+              fi
 
-        if [ $NO_ROTATE -eq 0 ]; then
-          if [ $FOUND_CURRENT -ne 1 ]; then
-            # Rename .sync to current date-snapshot
+              if [ $DRY_RUN -eq 0 ]; then
+                mv -- "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" ".sync")" "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" "snapshot_${CUR_DATE}")"
+              fi
+            fi
+
             if [ $VERBOSE -eq 1 ]; then
-              log_line "Renaming \"${SUB_DIR}/.sync\" to \"${SUB_DIR}/snapshot_${CUR_DATE}\""
+              log_line "Setting permissions 750 for \"$SUB_DIR/snapshot_${CUR_DATE}\""
             fi
 
             if [ $DRY_RUN -eq 0 ]; then
-              mv -- "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" ".sync")" "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" "snapshot_${CUR_DATE}")"
+              chmod 750 -- "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" "snapshot_${CUR_DATE}")"
+
+              # Update timestamp on base folder:
+              touch -- "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" "snapshot_${CUR_DATE}")"
+            fi
+          else
+            if [ $VERBOSE -eq 1 ]; then
+              log_line "Setting permissions 750 for \"$SUB_DIR/.sync\""
+            fi
+            if [ $DRY_RUN -eq 0 ]; then
+              chmod 750 -- "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" ".sync")"
+
+              # Update timestamp on base folder:
+              touch -- "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" ".sync")"
             fi
           fi
 
-          if [ $VERBOSE -eq 1 ]; then
-            log_line "Setting permissions 750 for \"$SUB_DIR/snapshot_${CUR_DATE}\""
-          fi
-
-          if [ $DRY_RUN -eq 0 ]; then
-            chmod 750 -- "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" "snapshot_${CUR_DATE}")"
-
-            # Update timestamp on base folder:
-            touch -- "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" "snapshot_${CUR_DATE}")"
-          fi
-        else
-          if [ $VERBOSE -eq 1 ]; then
-            log_line "Setting permissions 750 for \"$SUB_DIR/.sync\""
-          fi
-          if [ $DRY_RUN -eq 0 ]; then
-            chmod 750 -- "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" ".sync")"
-
-            # Update timestamp on base folder:
-            touch -- "$SSHFS_MOUNT_PATH/$(encode_item "$SOURCE_DIR" ".sync")"
-          fi
-        fi
-
-        umount_remote_sshfs
-      else
-        log_error_line "ERROR: rsync failed"
-        RET=1
-        #. Showing log file:" >&2
-        #grep -v -e 'building file list' -e 'files to consider' "$LOG_FILE"
+          umount_remote_sshfs
+       fi
       fi
     else
       if [ $VERBOSE -eq 1 ]; then
@@ -1077,3 +1084,4 @@ fi
 lock_leave
 
 exit 0
+
