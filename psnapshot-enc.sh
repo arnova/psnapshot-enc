@@ -1,6 +1,6 @@
 #!/bin/sh
 
-MY_VERSION="0.30-BETA15"
+MY_VERSION="0.30-BETA16"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
 # Last update: Jul 9, 2017
@@ -387,7 +387,6 @@ backup()
     fi
 
     # Look for already existing snapshot directories
-    FOUND_SYNC=0
     FOUND_CURRENT=0
     LAST_SNAPSHOT_ENC=""
 
@@ -397,20 +396,19 @@ backup()
     for ITEM in `find "$SSHFS_MOUNT_PATH/" -maxdepth 1 -mindepth 1 -type d`; do
       NAME="$(basename "$ITEM")"
       DECODED_NAME="$(decode_item "$SOURCE_DIR" "$NAME")"
-      DIR_LIST="${DECODED_NAME}:${NAME} ${DIR_LIST}"
+      DIR_LIST="${DECODED_NAME}:${NAME}${EOL}${DIR_LIST}"
     done
 
     # Unmount, else the connection may timeout before we use it again (below)
     umount_remote_sshfs
 
-    IFS=' '
-    for ITEM in `echo "$DIR_LIST" |sort -r |head -n3`; do
+    IFS=$EOL
+    for ITEM in `printf '%s\n' "$DIR_LIST" |sort -r |head -n3`; do
       DECODED_NAME="$(echo "$ITEM" |cut -d':' -f1)"
       ENCODED_NAME="$(echo "$ITEM" |cut -d':' -f2)"
 
       case $DECODED_NAME in
-        .sync                ) FOUND_SYNC=1
-                               if [ $VERBOSE -eq 1 ]; then
+        .sync                ) if [ $VERBOSE -eq 1 ]; then
                                  log_line ".sync ($ENCODED_NAME) folder found"
                                fi
                                ;;
