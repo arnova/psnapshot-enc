@@ -69,9 +69,9 @@ mount_remote_sshfs_rw()
   fi
 
   if [ $(id -u) -eq 0 ]; then
-    sshfs "${USER_AND_SERVER}:${TARGET_PATH}/$SUB_DIR" "$SSHFS_MOUNT_PATH" -o Cipher="$SSH_CIPHER",nonempty
+    sshfs "${USER_AND_SERVER}:${TARGET_PATH}/$SUB_DIR" "$SSHFS_MOUNT_PATH" -o Cipher="$SSH_CIPHER,nonempty"
   else
-    sshfs "${USER_AND_SERVER}:${TARGET_PATH}/$SUB_DIR" "$SSHFS_MOUNT_PATH" -o Cipher="$SSH_CIPHER",nonempty,uid="$(id -u)",gid="$(id -g)"
+    sshfs "${USER_AND_SERVER}:${TARGET_PATH}/$SUB_DIR" "$SSHFS_MOUNT_PATH" -o Cipher="$SSH_CIPHER,nonempty,uid=$(id -u),gid=$(id -g)"
   fi
 }
 
@@ -98,13 +98,13 @@ mount_remote_encfs_rw()
   fi
 
   if mount_remote_sshfs_rw "$SUB_DIR" $*; then
-    if ENCFS6_CONFIG="$ENCFS_CONF_FILE" encfs --extpass="echo "$ENCFS_PASSWORD"" --standard "$SSHFS_MOUNT_PATH" "$ENCFS_MOUNT_PATH"; then
+    if ENCFS6_CONFIG="$ENCFS_CONF_FILE" encfs --extpass="echo $ENCFS_PASSWORD" --standard "$SSHFS_MOUNT_PATH" "$ENCFS_MOUNT_PATH"; then
       return 0 # Success
     fi
   fi
 
   # Failure
-  umount_remote_sshfs 
+  umount_remote_sshfs
   return 1
 }
 
@@ -128,7 +128,7 @@ mount_rev_encfs_ro()
     return 1 # Failure
   fi
 
-  if ENCFS6_CONFIG="$ENCFS_CONF_FILE" encfs -o ro --reverse --extpass="echo "$ENCFS_PASSWORD"" --standard "$1" "$ENCFS_MOUNT_PATH"; then
+  if ENCFS6_CONFIG="$ENCFS_CONF_FILE" encfs -o ro --reverse --extpass="echo $ENCFS_PASSWORD" --standard "$1" "$ENCFS_MOUNT_PATH"; then
     return 0 # Success
   fi
 
@@ -219,7 +219,7 @@ encode_item()
   local result
 
   if [ "$ENCFS_ENABLE" != "0" -a -n "$2" ]; then
-    result=`ENCFS6_CONFIG="$ENCFS_CONF_FILE" encfsctl encode --extpass="echo "$ENCFS_PASSWORD"" -- "$1" "$2"`
+    result=`ENCFS6_CONFIG="$ENCFS_CONF_FILE" encfsctl encode --extpass="echo $ENCFS_PASSWORD" -- "$1" "$2"`
     if [ -n "$result" ]; then
       echo "$result"
       return
@@ -235,7 +235,7 @@ decode_item()
   local result
 
   if [ "$ENCFS_ENABLE" != "0" -a -n "$2" ]; then
-    result=`ENCFS6_CONFIG="$ENCFS_CONF_FILE" encfsctl decode --extpass="echo "$ENCFS_PASSWORD"" -- "$1" "$2"`
+    result=`ENCFS6_CONFIG="$ENCFS_CONF_FILE" encfsctl decode --extpass="echo $ENCFS_PASSWORD" -- "$1" "$2"`
     if [ -n "$result" ]; then
       echo "$result"
       return
@@ -254,7 +254,7 @@ rsync_decode_path()
 
   # Special handling for paths containing unencoded base target path
   if echo "$RSYNC_PATH" |grep -q "^$TARGET_BASE_PATH/"; then
-    printf "$TARGET_BASE_PATH/"
+    printf "%s/" "$TARGET_BASE_PATH"
     RSYNC_PATH="$(echo "$RSYNC_PATH" |sed s!"^$TARGET_BASE_PATH/"!!)"
   fi
 
@@ -265,7 +265,7 @@ rsync_decode_path()
     if [ $FIRST -eq 0 ] || echo "$RSYNC_PATH" |grep -q '^/'; then
       printf "/"
     fi
-    printf "$(decode_item "$1" "$SUB_DIR")"
+    printf "%s" "$(decode_item "$1" "$SUB_DIR")"
     FIRST=0
   done
 
@@ -510,7 +510,7 @@ backup()
       # Warning: Do NOT change the line below since it's used by --logview!
       log_line "$change_count change(s) detected in source-path \"$SOURCE_DIR\" -> syncing to target-path \"$TARGET_PATH/$SUB_DIR\"..."
 
-      RSYNC_LINE="-v --log-file="$LOG_FILE" $RSYNC_LINE"
+      RSYNC_LINE="-v --log-file=$LOG_FILE $RSYNC_LINE"
 
       if [ $VERBOSE -eq 1 ]; then
         RSYNC_LINE="--progress $RSYNC_LINE"
@@ -670,7 +670,7 @@ backup_bg_process()
 {
   log_line "Starting background thread and waiting for changes..."
 
-  sleep $(($INITIAL_SLEEP_TIME * 60)) # Initial delay (default = 15 minutes)
+  sleep $((INITIAL_SLEEP_TIME * 60)) # Initial delay (default = 15 minutes)
   while true; do
     result="$(backup 2>&1)"
     retval=$?
@@ -680,12 +680,12 @@ backup_bg_process()
     fi
 
     if [ $retval -ne 0 ] || printf "%s\n" "$result" |grep -q -i -e error -e warning -e fail; then
-      printf "Subject: psnapshot-enc FAILURE\n\n$result\n" |sendmail "$MAIL_TO"
+      printf "Subject: psnapshot-enc FAILURE\n\n%s\n" "$result" |sendmail "$MAIL_TO"
     fi
 
     # Sleep till the next sync
     echo "* Sleeping $SLEEP_TIME minutes..."
-    sleep $(($SLEEP_TIME * 60))
+    sleep $((SLEEP_TIME * 60))
   done
 }
 
@@ -707,8 +707,6 @@ view_log_file()
   while read LINE; do
     # Detect rsync log line:
     if echo "$LINE" |grep -E -q '\[[0-9]+\]'; then
-      LINE_STRIPPED="$(echo "$LINE" |cut -d' ' -f1,2,3 --complement)"
-
       # Simple check to determine whether this is an itemized list of changes
       if [ -n "$SOURCE_PATH" ]; then
         PREFIX="$(echo "$LINE" |cut -d' ' -f1,2,3)"
