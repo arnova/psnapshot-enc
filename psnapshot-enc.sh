@@ -1,6 +1,6 @@
 #!/bin/sh
 
-MY_VERSION="0.30-BETA14"
+MY_VERSION="0.30-BETA15"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
 # Last update: Jul 9, 2017
@@ -495,12 +495,13 @@ backup()
     retval=$?
 
     # NOTE: Ignore root (eg. permission) changes with ' ./$' and non-regular files
-    change_count="$(echo "$result" |grep -v -e ' ./$' -e '^skipping non-regular file' |wc -l)"
+    change_count="$(printf "%s\n" "$result" |grep -v -e ' ./$' -e '^skipping non-regular file' |wc -l)"
 
     if [ $retval -eq 24 ]; then
       log_error_line "WARNING: rsync partial failure ($retval)"
     elif [ $retval -ne 0 ]; then
       log_error_line "ERROR: rsync failed ($retval)"
+      log_error_line "$result"
       change_count=0
       RET=1 # Flag error
     fi
@@ -678,7 +679,7 @@ backup_bg_process()
       echo "$result"
     fi
 
-    if [ $retval -ne 0 ] || echo "$result" |grep -q -i -e error -e warning -e fail; then
+    if [ $retval -ne 0 ] || printf "%s\n" "$result" |grep -q -i -e error -e warning -e fail; then
       printf "Subject: psnapshot-enc FAILURE\n\n$result\n" |sendmail "$MAIL_TO"
     fi
 
