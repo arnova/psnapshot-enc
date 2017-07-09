@@ -1,6 +1,6 @@
 #!/bin/sh
 
-MY_VERSION="0.30-BETA16"
+MY_VERSION="0.30-BETA17"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
 # Last update: Jul 9, 2017
@@ -221,7 +221,7 @@ encode_item()
   if [ "$ENCFS_ENABLE" != "0" -a -n "$2" ]; then
     result=`ENCFS6_CONFIG="$ENCFS_CONF_FILE" encfsctl encode --extpass="echo $ENCFS_PASSWORD" -- "$1" "$2"`
     if [ -n "$result" ]; then
-      echo "$result"
+      printf '%s\n' "$result"
       return
     fi
   fi
@@ -237,7 +237,7 @@ decode_item()
   if [ "$ENCFS_ENABLE" != "0" -a -n "$2" ]; then
     result=`ENCFS6_CONFIG="$ENCFS_CONF_FILE" encfsctl decode --extpass="echo $ENCFS_PASSWORD" -- "$1" "$2"`
     if [ -n "$result" ]; then
-      echo "$result"
+      printf '%s\n' "$result"
       return
     fi
   fi
@@ -674,7 +674,7 @@ backup_bg_process()
     retval=$?
 
     if [ $VERBOSE -eq 1 ]; then
-      echo "$result"
+      printf '%s\n' "$result"
     fi
 
     if [ $retval -ne 0 ] || printf "%s\n" "$result" |grep -q -i -e error -e warning -e fail; then
