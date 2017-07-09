@@ -181,11 +181,11 @@ lock_enter()
 
 lock_leave()
 {
-  # Disable int handler
-  trap - INT TERM EXIT
-
   # Remove lockfile
   rm -f "$LOCK_FILE"
+
+  # Disable int handler
+  trap - INT TERM EXIT
 }
 
 
