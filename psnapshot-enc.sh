@@ -32,7 +32,7 @@ SLEEP_TIME=240
 INITIAL_SLEEP_TIME=15
 ENCFS_MOUNT_PATH="/mnt/encfs"
 SSHFS_MOUNT_PATH="/mnt/sshfs"
-LOCK_FILE="/tmp/.psnapshot-enc.lock"
+LOCK_FILE="/var/lock/psnapshot-enc.lock"
 
 EOL='
 '
