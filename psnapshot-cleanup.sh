@@ -1,10 +1,10 @@
 #!/bin/sh
 
-MY_VERSION="0.20-ALPHA1"
+MY_VERSION="0.20-ALPHA2"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Server-Side Cleanup Script
-# Last update: May 17, 2017
-# (C) Copyright 2014-2017 by Arno van Amersfoort
+# Last update: December 29, 2017
+# (C) Copyright 2014-2018 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
 #                         (note: you must remove all spaces and substitute the @ and the . at the proper locations!)
@@ -68,37 +68,36 @@ cleanup()
 
       # Skip the newest (.sync and newest date)
       if [ $COUNT -gt 1 ]; then
-        if [ $DRYRUN -eq 0 ]; then
-          chown 0:0 "$SUBDIR"
-          chmod 755 "$SUBDIR"
-        else
-          echo "chown 0:0 $SUBDIR"
-          echo "chmod 755 $SUBDIR"
-        fi
+#        if [ $DRY_RUN -eq 0 ]; then
+#          chown 0:0 "$SUBDIR"
+#          chmod 755 "$SUBDIR"
+#        else
+#          echo "chown 0:0 $SUBDIR"
+#          echo "chmod 755 $SUBDIR"
+#        fi
 
-        IFS=$EOL
-        find "$SUBDIR/" ! -uid 0 ! -type l |while read FN; do
-          # Make files readonly
-          if [ $DRYRUN -eq 0 ]; then
-            chmod -w "$FN"
-          else
-            echo "chmod -w $FN"
-          fi
-        done
+        #FIXME
+#        IFS=$EOL
+#        find "$SUBDIR/" ! -uid 0 ! -type l |while read FN; do
+#          # Make files readonly
+#          if [ $DRY_RUN -eq 0 ]; then
+#            chmod -w "$FN"
+#          else
+#            echo "chmod -w $FN"
+#          fi
+#        done
 
         MTIME_YEAR="$(echo "$MTIME" |cut -f1 -d'-')"
         MTIME_MONTH="$(echo "$MTIME" |cut -f2 -d'-')"
         DIR_NAME="$(basename "$SUBDIR")"
 
         KEEP=0
-        if [ $DAILY_COUNT -le $DAILY_KEEP ]; then
+        if [ $DAILY_COUNT -lt $DAILY_KEEP ]; then
           DAILY_COUNT=$((DAILY_COUNT + 1))
           # We want to keep this day
           echo "KEEP DAILY $MTIME: $DIR_NAME"
           KEEP=1
-        fi
-
-        if [ $MONTHLY_COUNT -le $MONTHLY_KEEP ] && [ $MTIME_MONTH -ne $MONTH_LAST -o $MTIME_YEAR -ne $YEAR_LAST ]; then
+        elif [ $MONTHLY_COUNT -lt $MONTHLY_KEEP ] && [ $MTIME_MONTH -ne $MONTH_LAST -o $MTIME_YEAR -ne $YEAR_LAST ]; then
           # We want to keep this month
           MONTHLY_COUNT=$((MONTHLY_COUNT + 1))
           MONTH_LAST=$MTIME_MONTH
@@ -106,9 +105,7 @@ cleanup()
           echo "KEEP MONTHLY $MTIME: $DIR_NAME"
           YEAR_LAST=$MTIME_YEAR
           KEEP=1
-        fi
-
-        if [ $YEARLY_COUNT -le $YEARLY_KEEP ] && [ $MTIME_YEAR -ne $YEAR_LAST -o $COUNT -eq $COUNT_TOTAL ]; then
+        elif [ $YEARLY_COUNT -lt $YEARLY_KEEP ] && [ $MTIME_YEAR -ne $YEAR_LAST -o $COUNT -eq $COUNT_TOTAL ]; then
           YEARLY_COUNT=$((YEARLY_COUNT + 1))
           YEAR_LAST=$MTIME_YEAR
 
@@ -119,10 +116,10 @@ cleanup()
 
         if [ $KEEP -eq 0 ]; then
           echo "REMOVE $MTIME: $DIR_NAME"
-          if [ $DRYRUN -eq 0 ]; then
+          if [ $DRY_RUN -eq 0 ]; then
             rm -rf "$SUBDIR"
           else
-            echo "rm -rf $SUBDIR"
+            echo "* rm -rf $SUBDIR"
           fi
         fi
       fi
@@ -148,7 +145,7 @@ show_help()
   echo "" >&2
   echo "Options:" >&2
   echo "--help|-h                   - Print this help" >&2
-  echo "--test|--dry-run            - Only show what would be performed (test run)" >&2
+  echo "--run                       - Perform actual cleanup (else only dry-run)" >&2
   echo "--verbose                   - Be verbose with displaying info" >&2
   echo "--conf|-c={config_file}     - Specify alternate configuration file (default=$CONF_FILE)" >&2
   echo ""
@@ -158,7 +155,7 @@ show_help()
 process_commandline_and_load_conf()
 {
   # Set environment variables to default
-  DRY_RUN=0
+  DRY_RUN=1
 
   OPT_VERBOSE=0
   OPT_CONF_FILE=""
@@ -178,7 +175,7 @@ process_commandline_and_load_conf()
                            OPT_CONF_FILE="$ARGVAL"
                          fi
                          ;;
-       --dry-run|--test) DRY_RUN=1;;
+--run|--force|--execute) DRY_RUN=0;;
            --verbose|-v) OPT_VERBOSE=1;;
               --help|-h) show_help;
                          exit 0
@@ -236,7 +233,7 @@ process_commandline_and_load_conf()
 
 # Mainline:
 ###########
-echo "psnapshot-enc cleanup v$MY_VERSION - (C) Copyright 2014-2017 by Arno van Amersfoort"
+echo "psnapshot-enc cleanup v$MY_VERSION - (C) Copyright 2014-2018 by Arno van Amersfoort"
 echo ""
 
 process_commandline_and_load_conf $*
@@ -246,3 +243,4 @@ sanity_check
 cleanup
 
 exit 0
+
