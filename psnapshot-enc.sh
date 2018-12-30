@@ -1,10 +1,10 @@
 #!/bin/sh
 
-MY_VERSION="0.30-BETA17"
+MY_VERSION="0.31-BETA1"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
-# Last update: Jul 9, 2017
-# (C) Copyright 2014-2017 by Arno van Amersfoort
+# Last update: December 30, 2018
+# (C) Copyright 2014-2018 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
 #                         (note: you must remove all spaces and substitute the @ and the . at the proper locations!)
@@ -612,6 +612,10 @@ remote_init()
 
   echo "* Using ENCFS6 config file: $ENCFS_CONF_FILE"
 
+  if ! lock_enter; then
+    return 1
+  fi
+
   umount_encfs 2>/dev/null # Umount first, just in case
 
   # Test mount rev encfs
@@ -642,7 +646,8 @@ remote_init()
     fi
 
     umount_remote_sshfs 2>/dev/null # First unmount
-    if ! mount_remote_sshfs_rw; then
+    #FIXME: SUB_DIR ok?
+    if ! mount_remote_sshfs_rw "$SUB_DIR"; then
       echo "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}\" on \"$SSHFS_MOUNT_PATH\" failed!" >&2
       RET=1
       continue
@@ -660,7 +665,7 @@ remote_init()
     umount_remote_sshfs
   done
 
-  return RET
+  return $RET
 }
 
 
@@ -685,6 +690,144 @@ backup_bg_process()
     echo "* Sleeping $SLEEP_TIME minutes..."
     sleep $((SLEEP_TIME * 60))
   done
+}
+
+
+cleanup_backup_folder()
+{
+  local DIR="$1"
+  local DAILY_COUNT=0 MONTHLY_COUNT=0 YEARLY_COUNT=0 MONTH_LAST=0 YEAR_LAST=0
+
+  if [ ! -d "$DIR" ]; then
+    echo "ASSERTION FAILURE: DIRECTORY \"$DIR\" DOES NOT EXIST!" >&2
+    return 1
+  fi
+
+  SUBDIR_LIST="$(find "$DIR/" -maxdepth 1 -mindepth 1 -name "snapshot_*" -type d |sort -r)"
+  COUNT_TOTAL="$(echo "$SUBDIR_LIST" |wc -l)"
+
+  # Make sure there are sufficient backups
+  if [ $COUNT_TOTAL -le 3 ]; then
+    echo "NOTE: Not performing cleanup due to low amount of existing backups($COUNT_TOTAL)"
+    return 0
+  fi
+
+  local RET=0
+
+  COUNT=0
+  IFS=$EOL
+  for SUBDIR in $SUBDIR_LIST; do
+    MTIME="$(echo "$SUBDIR" |sed s,'.*/snapshot_',,)"
+
+    if [ -z "$SUBDIR" ]; then
+      echo "ASSERTION FAILURE: EMPTY SUBDIR" >&2
+      return 1
+    fi
+
+#    echo "* SUBDIR: $SUBDIR"
+    COUNT=$((COUNT + 1))
+
+    MTIME_YEAR="$(echo "$MTIME" |cut -f1 -d'-')"
+    MTIME_MONTH="$(echo "$MTIME" |cut -f2 -d'-')"
+    DIR_NAME="$(basename "$SUBDIR")"
+
+    KEEP=0
+    if [ $DAILY_COUNT -lt $DAILY_KEEP ]; then
+      DAILY_COUNT=$((DAILY_COUNT + 1))
+      # We want to keep this day
+      echo "KEEP DAILY  : $DIR_NAME"
+      KEEP=1
+    elif [ $MONTHLY_COUNT -lt $MONTHLY_KEEP ] && [ $MTIME_MONTH -ne $MONTH_LAST -o $MTIME_YEAR -ne $YEAR_LAST ]; then
+      # We want to keep this month
+      MONTHLY_COUNT=$((MONTHLY_COUNT + 1))
+      MONTH_LAST=$MTIME_MONTH
+
+      echo "KEEP MONTHLY: $DIR_NAME"
+      YEAR_LAST=$MTIME_YEAR
+      KEEP=1
+    elif [ $YEARLY_COUNT -lt $YEARLY_KEEP ] && [ $MTIME_YEAR -ne $YEAR_LAST -o $COUNT -eq $COUNT_TOTAL ]; then
+      YEARLY_COUNT=$((YEARLY_COUNT + 1))
+      YEAR_LAST=$MTIME_YEAR
+
+      # We want to keep this year
+      echo "KEEP YEARLY : $DIR_NAME"
+      KEEP=1
+    fi
+
+    if [ $KEEP -eq 0 ]; then
+      echo "REMOVE      : $DIR_NAME"
+      if [ $DRY_RUN -eq 0 ]; then
+        if ! rm -rf "$SUBDIR"; then
+          RET=1
+        fi
+      else
+        echo " rm -rf $SUBDIR"
+      fi
+    fi
+  done
+  echo ""
+
+  return $RET
+}
+
+
+cleanup_remote_backups()
+{
+  local RET=0
+
+  if [ -z $DAILY_KEEP -o $DAILY_KEEP -le 0 ]; then
+    echo "ERROR: Bad or missing config variable DAILY_KEEP"
+    return 1
+  fi
+
+  if [ -z $MONTHLY_KEEP -o $MONTHLY_KEEP -le 0 ]; then
+    echo "ERROR: Bad or missing config variable MONTHLY_KEEP"
+    return 1
+  fi
+
+  if [ -z $YEARLY_KEEP -o $YEARLY_KEEP -le 0 ]; then
+    echo "ERROR: Bad or missing config variable YEARLY_KEEP"
+    return 1
+  fi
+
+  if ! lock_enter; then
+    return 1
+  fi
+
+  echo "* Performing cleanup for: $BACKUP_DIRS"
+  echo "* Retention config: Dailies=$DAILY_KEEP Monthlies=$MONTHLY_KEEP Yearlies=$YEARLY_KEEP"
+
+  CUR_DATE=`date "+%Y-%m-%d"`
+
+  IFS=' '
+  for ITEM in $BACKUP_DIRS; do
+    # Determine folder name to use on target
+    if echo "$ITEM" |grep -q ':'; then
+      SUB_DIR="$(echo "$ITEM" |cut -f2 -d':')"
+    else
+      # No sub dir specified, use basename
+#      SUB_DIR="$(echo "$ITEM" |tr / _)"
+      SUB_DIR="$(basename "$ITEM")"
+    fi
+
+    echo "* Processing backup folder: $SUB_DIR"
+
+    umount_remote_encfs 2>/dev/null # First unmount
+
+    if ! mount_remote_encfs_rw "$SUB_DIR"; then
+      echo "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}\" on \"$ENCFS_MOUNT_PATH/\" (via \"$SSHFS_MOUNT_PATH\") failed!" >&2
+      RET=1
+      continue
+    fi
+
+    if ! cleanup_backup_folder "$ENCFS_MOUNT_PATH"; then
+      RET=1
+    fi
+
+    umount_remote_encfs
+  done
+
+  return $RET
 }
 
 
@@ -770,6 +913,7 @@ show_help()
   echo "--mount={remote_dir}        - Mount remote sshfs+encfs backup folder (read-only)" >&2
   echo "--mountrw={remote_dir}      - Mount remote sshfs+encfs backup folder (read-write)" >&2
   echo "--umount                    - Umount remote sshfs+encfs filesystem" >&2
+  echo "--cleanup                   - Cleanup backups according to configured dailies/monthlies/yearlies" >&2
   echo "--logview={log_file}        - View (decoded) log file" >&2
   echo "--conf|-c={config_file}     - Specify alternate configuration file (default=${CONF_FILE})" >&2
   echo "--cipher={cipher}           - Specify SSH cipher (default=${SSH_CIPHER})" >&2
@@ -847,6 +991,7 @@ process_commandline_and_load_conf()
   NO_ROTATE=0
   LOG_VIEW=""
   REMOVE_LOCK=0
+  CLEANUP=0
 
   OPT_VERBOSE=0
   OPT_CONF_FILE=""
@@ -906,6 +1051,7 @@ process_commandline_and_load_conf()
                --umount) UMOUNT=1;;
               --init|-i) INIT=1;;
   --removelock|--rmlock) REMOVE_LOCK=1;;
+      --cleanup|--clean) CLEANUP=1;;
               --help|-h) show_help;
                          exit 0
                          ;;
@@ -966,7 +1112,7 @@ process_commandline_and_load_conf()
 
 # Mainline:
 ###########
-echo "psnapshot-enc v$MY_VERSION - (C) Copyright 2014-2017 by Arno van Amersfoort"
+echo "psnapshot-enc v$MY_VERSION - (C) Copyright 2014-2018 by Arno van Amersfoort"
 echo ""
 
 process_commandline_and_load_conf $*;
@@ -1037,6 +1183,8 @@ else
     fi
 
     remote_init
+  elif [ $CLEANUP -eq 1 ]; then
+    cleanup_remote_backups
   else
     # NOTE: Locking for backup is handled inside backup()
     if [ -z "$TARGET_PATH" ]; then
@@ -1082,3 +1230,4 @@ lock_leave
 
 exit 0
 
+# TODO: Logging for cleanup
