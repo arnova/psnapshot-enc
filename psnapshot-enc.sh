@@ -43,7 +43,7 @@ TAB=$(printf "\t")
 
 log_error_line()
 {
-  DATE=`LC_ALL=C date +'%b %d %H:%M:%S'`
+  DATE=`date '+%Y-%m-%d %H:%M:%S'`
 
   printf "$DATE - %s\n" "$1" >&2
   printf "$DATE - %s\n" "$1" >> "$LOG_FILE"
@@ -52,7 +52,7 @@ log_error_line()
 
 log_line()
 {
-  DATE=`LC_ALL=C date +'%b %d %H:%M:%S'`
+  DATE=`date '+%Y-%m-%d %H:%M:%S'`
 
   printf "$DATE - %s\n" "$1"
   printf "$DATE - %s\n" "$1" >> "$LOG_FILE"
