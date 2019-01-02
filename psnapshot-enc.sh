@@ -496,7 +496,7 @@ backup()
     change_count="$(printf "%s\n" "$result" |grep -v -e ' ./$' -e '^skipping non-regular file' |wc -l)"
 
     if [ $retval -eq 24 ]; then
-      log_error_line "WARNING: rsync partial failure ($retval)"
+      log_error_line "NOTE: rsync partial transfer due to vanished source files (24)"
     elif [ $retval -ne 0 ]; then
       log_error_line "ERROR: rsync failed ($retval)"
       log_error_line "$result"
@@ -533,7 +533,7 @@ backup()
       echo ""
 
       if [ $retval -eq 24 ]; then
-        log_error_line "WARNING: rsync partial failure ($retval)"
+        log_error_line "NOTE: rsync partial transfer due to vanished source files (24)"
         retval=0 # Ignore this error
       elif [ $retval -ne 0 ]; then
         log_error_line "ERROR: rsync failed ($retval)"
