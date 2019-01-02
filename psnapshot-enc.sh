@@ -1,10 +1,10 @@
 #!/bin/sh
 
-MY_VERSION="0.31-BETA1"
+MY_VERSION="0.31-BETA2"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
-# Last update: December 30, 2018
-# (C) Copyright 2014-2018 by Arno van Amersfoort
+# Last update: January 1, 2019
+# (C) Copyright 2014-2019 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
 #                         (note: you must remove all spaces and substitute the @ and the . at the proper locations!)
@@ -727,8 +727,8 @@ cleanup_backup_folder()
 #    echo "* SUBDIR: $SUBDIR"
     COUNT=$((COUNT + 1))
 
-    MTIME_YEAR="$(echo "$MTIME" |cut -f1 -d'-')"
-    MTIME_MONTH="$(echo "$MTIME" |cut -f2 -d'-')"
+    YEAR_MTIME="$(echo "$MTIME" |cut -f1 -d'-')"
+    MONTH_MTIME="$(echo "$MTIME" |cut -f2 -d'-')"
     DIR_NAME="$(basename "$SUBDIR")"
 
     KEEP=0
@@ -737,21 +737,30 @@ cleanup_backup_folder()
       # We want to keep this day
       echo "KEEP DAILY  : $DIR_NAME"
       KEEP=1
-    elif [ $MONTHLY_COUNT -lt $MONTHLY_KEEP ] && [ $MTIME_MONTH -ne $MONTH_LAST -o $MTIME_YEAR -ne $YEAR_LAST ]; then
-      # We want to keep this month
-      MONTHLY_COUNT=$((MONTHLY_COUNT + 1))
-      MONTH_LAST=$MTIME_MONTH
+    fi
 
-      echo "KEEP MONTHLY: $DIR_NAME"
-      YEAR_LAST=$MTIME_YEAR
-      KEEP=1
-    elif [ $YEARLY_COUNT -lt $YEARLY_KEEP ] && [ $MTIME_YEAR -ne $YEAR_LAST -o $COUNT -eq $COUNT_TOTAL ]; then
-      YEARLY_COUNT=$((YEARLY_COUNT + 1))
-      YEAR_LAST=$MTIME_YEAR
+    if [ $KEEP -eq 0 -a $MONTHLY_COUNT -lt $MONTHLY_KEEP ]; then
+      #TODO: Review the logic below
+      if [ $MONTH_MTIME -ne $MONTH_LAST -o $YEAR_MTIME -ne $YEAR_LAST ] || [ $COUNT -eq $COUNT_TOTAL ]; then
+        # We want to keep this month
+        MONTHLY_COUNT=$((MONTHLY_COUNT + 1))
+        MONTH_LAST=$MONTH_MTIME
 
-      # We want to keep this year
-      echo "KEEP YEARLY : $DIR_NAME"
-      KEEP=1
+        echo "KEEP MONTHLY: $DIR_NAME"
+        YEAR_LAST=$YEAR_MTIME
+        KEEP=1
+      fi
+    fi
+
+    if [ $KEEP -eq 0 -a $YEARLY_COUNT -lt $YEARLY_KEEP ]; then
+      if [ $YEAR_MTIME -ne $YEAR_LAST ] || [ $COUNT -eq $COUNT_TOTAL ]; then
+        YEARLY_COUNT=$((YEARLY_COUNT + 1))
+        YEAR_LAST=$YEAR_MTIME
+
+        # We want to keep this year
+        echo "KEEP YEARLY : $DIR_NAME"
+        KEEP=1
+      fi
     fi
 
     if [ $KEEP -eq 0 ]; then
@@ -1112,7 +1121,7 @@ process_commandline_and_load_conf()
 
 # Mainline:
 ###########
-echo "psnapshot-enc v$MY_VERSION - (C) Copyright 2014-2018 by Arno van Amersfoort"
+echo "psnapshot-enc v$MY_VERSION - (C) Copyright 2014-2019 by Arno van Amersfoort"
 echo ""
 
 process_commandline_and_load_conf $*;
