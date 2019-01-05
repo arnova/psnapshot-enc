@@ -707,8 +707,6 @@ cleanup_backup_folder()
     return 0
   fi
 
-  local RET=0
-
   COUNT=0
   IFS=$EOL
   for SNAPSHOT_DIR in $SNAPSHOT_DIR_LIST; do
@@ -782,13 +780,11 @@ cleanup_backup_folder()
 
         # Use rsync for fast removal:
         if ! rsync -a --delete /tmp/empty_dir/ "${USER_AND_SERVER}:$TARGET_PATH/$BACKUP_DIR/$SNAPSHOT_DIR_ENCODED/"; then
-          RET=1
-          continue
+          return 1
         fi
 
         if ! rmdir "$SNAPSHOT_DIR"; then
-          RET=1
-          continue
+          return 1
         fi
 
         rmdir "/tmp/pse_empty_dir"
@@ -797,7 +793,7 @@ cleanup_backup_folder()
   done
   echo ""
 
-  return $RET
+  return 0
 }
 
 
