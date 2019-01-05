@@ -1,9 +1,9 @@
 #!/bin/sh
 
-MY_VERSION="0.31-BETA2"
+MY_VERSION="0.31-BETA3"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
-# Last update: January 1, 2019
+# Last update: January 5, 2019
 # (C) Copyright 2014-2019 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
@@ -695,16 +695,11 @@ backup_bg_process()
 
 cleanup_backup_folder()
 {
-  local DIR="$1"
+  local BACKUP_DIR="$1"
   local DAILY_COUNT=0 MONTHLY_COUNT=0 YEARLY_COUNT=0 MONTH_LAST=0 YEAR_LAST=0
 
-  if [ ! -d "$DIR" ]; then
-    echo "ASSERTION FAILURE: DIRECTORY \"$DIR\" DOES NOT EXIST!" >&2
-    return 1
-  fi
-
-  SUBDIR_LIST="$(find "$DIR/" -maxdepth 1 -mindepth 1 -name "snapshot_*" -type d |sort -r)"
-  COUNT_TOTAL="$(echo "$SUBDIR_LIST" |wc -l)"
+  SNAPSHOT_DIR_LIST="$(find "$ENCFS_MOUNT_PATH/" -maxdepth 1 -mindepth 1 -name "snapshot_*" -type d |sort -r)"
+  COUNT_TOTAL="$(echo "$SNAPSHOT_DIR_LIST" |wc -l)"
 
   # Make sure there are sufficient backups
   if [ $COUNT_TOTAL -le 3 ]; then
@@ -716,20 +711,19 @@ cleanup_backup_folder()
 
   COUNT=0
   IFS=$EOL
-  for SUBDIR in $SUBDIR_LIST; do
-    MTIME="$(echo "$SUBDIR" |sed s,'.*/snapshot_',,)"
+  for SNAPSHOT_DIR in $SNAPSHOT_DIR_LIST; do
+    MTIME="$(echo "$SNAPSHOT_DIR" |sed s,'.*/snapshot_',,)"
 
-    if [ -z "$SUBDIR" ]; then
-      echo "ASSERTION FAILURE: EMPTY SUBDIR" >&2
+    if [ -z "$SNAPSHOT_DIR" ]; then
+      echo "ASSERTION FAILURE: EMPTY SNAPSHOT DIR" >&2
       return 1
     fi
 
-#    echo "* SUBDIR: $SUBDIR"
     COUNT=$((COUNT + 1))
 
     YEAR_MTIME="$(echo "$MTIME" |cut -f1 -d'-')"
     MONTH_MTIME="$(echo "$MTIME" |cut -f2 -d'-')"
-    DIR_NAME="$(basename "$SUBDIR")"
+    DIR_NAME="$(basename "$SNAPSHOT_DIR")"
 
     KEEP=0
     if [ $DAILY_COUNT -lt $DAILY_KEEP ]; then
@@ -765,12 +759,39 @@ cleanup_backup_folder()
 
     if [ $KEEP -eq 0 ]; then
       echo "REMOVE      : $DIR_NAME"
+      echo " rm -rf $SNAPSHOT_DIR"
+
       if [ $DRY_RUN -eq 0 ]; then
-        if ! rm -rf "$SUBDIR"; then
-          RET=1
+#        # Really sloooooow:
+#        if ! rm -rf "$SNAPSHOT_DIR"; then
+#          RET=1
+#        fi
+
+        SNAPSHOT_DIR_ENCODED="$(encode_item "$ENCFS_MOUNT_PATH" "$(basename "$SNAPSHOT_DIR")")"
+
+        if [ -z "$SNAPSHOT_DIR_ENCODED" ]; then
+          echo "ASSERTION FAILURE: SNAPSHOT_DIR_ENCODED IS EMPTY!" >&2
+          return 1
         fi
-      else
-        echo " rm -rf $SUBDIR"
+
+#        echo "DEBUG: $TARGET_PATH/$BACKUP_DIR/$SNAPSHOT_DIR_ENCODED"
+
+        if ! mkdir -p "/tmp/pse_empty_dir"; then
+          return 1
+        fi
+
+        # Use rsync for fast removal:
+        if ! rsync -a --delete /tmp/empty_dir/ "${USER_AND_SERVER}:$TARGET_PATH/$BACKUP_DIR/$SNAPSHOT_DIR_ENCODED/"; then
+          RET=1
+          continue
+        fi
+
+        if ! rmdir "$SNAPSHOT_DIR"; then
+          RET=1
+          continue
+        fi
+
+        rmdir "/tmp/pse_empty_dir"
       fi
     fi
   done
@@ -829,7 +850,7 @@ cleanup_remote_backups()
       continue
     fi
 
-    if ! cleanup_backup_folder "$ENCFS_MOUNT_PATH"; then
+    if ! cleanup_backup_folder "$SUB_DIR"; then
       RET=1
     fi
 
