@@ -1,9 +1,9 @@
 #!/bin/sh
 
-MY_VERSION="0.31-BETA3"
+MY_VERSION="0.31-BETA4"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
-# Last update: January 5, 2019
+# Last update: January 12, 2019
 # (C) Copyright 2014-2019 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
@@ -496,7 +496,7 @@ backup()
     change_count="$(printf "%s\n" "$result" |grep -v -e ' ./$' -e '^skipping non-regular file' |wc -l)"
 
     if [ $retval -eq 24 ]; then
-      log_error_line "NOTE: rsync partial transfer due to vanished source files (24)"
+      log_line "NOTE: rsync partial transfer due to vanished source files (24)"
     elif [ $retval -ne 0 ]; then
       log_error_line "ERROR: rsync failed ($retval)"
       log_error_line "$result"
@@ -533,7 +533,7 @@ backup()
       echo ""
 
       if [ $retval -eq 24 ]; then
-        log_error_line "NOTE: rsync partial transfer due to vanished source files (24)"
+        log_line "NOTE: rsync partial transfer due to vanished source files (24)"
         retval=0 # Ignore this error
       elif [ $retval -ne 0 ]; then
         log_error_line "ERROR: rsync failed ($retval)"
@@ -682,7 +682,7 @@ backup_bg_process()
       printf '%s\n' "$result"
     fi
 
-    if [ $retval -ne 0 ] || printf "%s\n" "$result" |grep -q -i -e error -e warning -e fail; then
+    if [ $retval -ne 0 ]; then
       printf "Subject: psnapshot-enc FAILURE\n\n%s\n" "$result" |sendmail "$MAIL_TO"
     fi
 
