@@ -671,7 +671,7 @@ remote_init()
 
 backup_bg_process()
 {
-  log_line "Starting background thread and waiting for changes..."
+  log_line "Starting background thread and checking for changes every $SLEEP_TIME minutes..."
 
   sleep $((INITIAL_SLEEP_TIME * 60)) # Initial delay (default = 15 minutes)
   while true; do
