@@ -1078,7 +1078,7 @@ process_commandline_and_load_conf()
               --init|-i) INIT=1;;
   --removelock|--rmlock) REMOVE_LOCK=1;;
       --cleanup|--clean) CLEANUP=1;;
-              --help|-h) show_help;
+              --help|-h) show_help
                          exit 0
                          ;;
                      --) shift
@@ -1141,7 +1141,7 @@ process_commandline_and_load_conf()
 echo "psnapshot-enc v$MY_VERSION - (C) Copyright 2014-2019 by Arno van Amersfoort"
 echo ""
 
-process_commandline_and_load_conf $*;
+process_commandline_and_load_conf $*
 
 sanity_check
 

@@ -177,7 +177,7 @@ process_commandline_and_load_conf()
                          ;;
 --run|--force|--execute) DRY_RUN=0;;
            --verbose|-v) OPT_VERBOSE=1;;
-              --help|-h) show_help;
+              --help|-h) show_help
                          exit 0
                          ;;
                      --) shift

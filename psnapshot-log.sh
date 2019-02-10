@@ -12,7 +12,7 @@ for DIR in $DIRS; do
 
   if [ ! -d "$DIR" ]; then
     echo " DIR DOES NOT EXIST!" >&2
-    continue;
+    continue
   fi
 
   MTIME_SUBDIR_LIST="$(find "$DIR/" -maxdepth 1 -mindepth 1 -type d -print0 |xargs -r0 stat -c "%y${TAB}%n" |sort -r)"
