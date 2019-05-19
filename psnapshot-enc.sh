@@ -712,8 +712,8 @@ cleanup_backup_folder()
   for SNAPSHOT_DIR in $SNAPSHOT_DIR_LIST; do
     MTIME="$(echo "$SNAPSHOT_DIR" |sed s,'.*/snapshot_',,)"
 
-    if [ -z "$SNAPSHOT_DIR" ]; then
-      echo "ASSERTION FAILURE: EMPTY SNAPSHOT DIR" >&2
+    if [ -z "$MTIME" ]; then
+      echo "ASSERTION FAILURE: EMPTY MTIME IN SNAPSHOT DIR \"$SNAPSHOT_DIR\"" >&2
       return 1
     fi
 
@@ -802,17 +802,17 @@ cleanup_remote_backups()
   local RET=0
 
   if [ -z $DAILY_KEEP -o $DAILY_KEEP -le 0 ]; then
-    echo "ERROR: Bad or missing config variable DAILY_KEEP"
+    echo "ERROR: Bad or missing config variable DAILY_KEEP" >&2
     return 1
   fi
 
   if [ -z $MONTHLY_KEEP -o $MONTHLY_KEEP -le 0 ]; then
-    echo "ERROR: Bad or missing config variable MONTHLY_KEEP"
+    echo "ERROR: Bad or missing config variable MONTHLY_KEEP" >&2
     return 1
   fi
 
   if [ -z $YEARLY_KEEP -o $YEARLY_KEEP -le 0 ]; then
-    echo "ERROR: Bad or missing config variable YEARLY_KEEP"
+    echo "ERROR: Bad or missing config variable YEARLY_KEEP" >&2
     return 1
   fi
 
