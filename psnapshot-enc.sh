@@ -104,7 +104,7 @@ mount_remote_encfs_rw()
   fi
 
   # Failure
-  umount_remote_sshfs
+  umount_remote_sshfs 2>/dev/null
   return 1
 }
 
@@ -173,6 +173,7 @@ lock_enter()
     FAIL_COUNT=$((FAIL_COUNT + 1))
   done
 
+  echo "" >&2
   echo "ERROR: Failed to acquire lockfile: $LOCK_FILE. Held by PID $(cat $LOCK_FILE)" >&2
 
   return 1 # Lock failed
@@ -841,6 +842,7 @@ cleanup_remote_backups()
     umount_remote_encfs 2>/dev/null # First unmount
 
     if ! mount_remote_encfs_rw "$SUB_DIR"; then
+      echo "" >&2
       echo "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}\" on \"$ENCFS_MOUNT_PATH/\" (via \"$SSHFS_MOUNT_PATH\") failed!" >&2
       RET=1
       continue
@@ -866,6 +868,7 @@ view_log_file()
   echo "Viewing log file \"$LOG_FILE\":"
 
   if [ ! -f "$LOG_FILE" ]; then
+    echo "" >&2
     echo "ERROR: Log file \"$LOG_FILE\" not found!"
     exit 1
   fi
@@ -961,7 +964,7 @@ sanity_check()
 
       if [ ! -e "$SOURCE_DIR" ]; then
         echo "ERROR: Source directory $SOURCE_DIR does NOT exist!" >&2
-        echo ""
+        echo "" >&2
         exit 1
       fi
     done
@@ -969,26 +972,26 @@ sanity_check()
 
   if [ -z "$USER_AND_SERVER" ]; then
     echo "ERROR: Missing USER_AND_SERVER setting. Check $CONF_FILE" >&2
-    echo ""
+    echo "" >&2
     exit 1
   fi
 
   if [ -z "$LOG_FILE" ]; then
     echo "ERROR: Missing LOG_FILE setting. Check $CONF_FILE" >&2
-    echo ""
+    echo "" >&2
     exit 1
   fi
 
   if [ "$ENCFS_ENABLE" != "0" ]; then
     if [ -z "$ENCFS_CONF_FILE" ]; then
       echo "ERROR: Missing ENCFS_CONF_FILE setting. Check $CONF_FILE" >&2
-      echo ""
+      echo "" >&2
       exit 1
     fi
 
     if [ $INIT -eq 0 -a ! -e "$ENCFS_CONF_FILE" ]; then
       echo "ERROR: Missing ENCFS_CONF_FILE($ENCFS_CONF_FILE) not found. You need to run with --init first!" >&2
-      echo ""
+      echo "" >&2
       exit 1
     fi
 
@@ -1181,6 +1184,7 @@ else
       echo "* Done"
       echo ""
     else
+      echo "" >&2
       echo "ERROR: Mount failed. Please investigate!" >&2
       echo "" >&2
       exit_handler
@@ -1198,6 +1202,7 @@ else
       echo "* Done"
       echo ""
     else
+      echo "" >&2
       echo "ERROR: Mount failed. Please investigate!" >&2
       echo "" >&2
       exit_handler
@@ -1208,7 +1213,10 @@ else
       exit 2
     fi
 
-    remote_init
+    if ! remote_init; then
+      echo "" >&2
+      exit 1
+    fi
   elif [ $CLEANUP -eq 1 ]; then
     cleanup_remote_backups
   else
