@@ -379,7 +379,7 @@ backup()
 
     FOUND_CURRENT=0
     LAST_SNAPSHOT_ENC=""
-    if [ "$NO_SNAPSHOSTS" != "1" ]; then
+    if [ "$NO_SNAPSHOTS" != "1" ]; then
       umount_remote_sshfs 2>/dev/null # First unmount
 
       result="$(mount_remote_sshfs_rw "$SUB_DIR" 2>&1)"
@@ -1148,7 +1148,7 @@ process_commandline_and_load_conf()
 
 # Mainline:
 ###########
-echo "psnapshot-enc v$MY_VERSION - (C) Copyright 2014-2019 by Arno van Amersfoort"
+echo "psnapshot-enc v$MY_VERSION - (C) Copyright 2014-2020 by Arno van Amersfoort"
 echo ""
 
 process_commandline_and_load_conf $*
