@@ -1,10 +1,10 @@
 #!/bin/sh
 
-MY_VERSION="0.31-BETA4"
+MY_VERSION="0.40-BETA1"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
-# Last update: January 12, 2019
-# (C) Copyright 2014-2019 by Arno van Amersfoort
+# Last update: March 26, 2020
+# (C) Copyright 2014-2020 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
 #                         (note: you must remove all spaces and substitute the @ and the . at the proper locations!)
@@ -377,56 +377,57 @@ backup()
       fi
     fi
 
-    umount_remote_sshfs 2>/dev/null # First unmount
-
-    result="$(mount_remote_sshfs_rw "$SUB_DIR" 2>&1)"
-    if [ $? -ne 0 ]; then
-      log_error_line "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}/$SUB_DIR\" on \"$SSHFS_MOUNT_PATH\" failed! Aborting backup for $SOURCE_DIR"
-      log_error_line "$result"
-      RET=1
-      continue
-    fi
-
-    # Look for already existing snapshot directories
     FOUND_CURRENT=0
     LAST_SNAPSHOT_ENC=""
+    if [ "$NO_SNAPSHOSTS" != "1" ]; then
+      umount_remote_sshfs 2>/dev/null # First unmount
 
-    # First get a list of all the snapshot folders
-    DIR_LIST=""
-    IFS=$EOL
-    for ITEM in `find "$SSHFS_MOUNT_PATH/" -maxdepth 1 -mindepth 1 -type d`; do
-      NAME="$(basename "$ITEM")"
-      DECODED_NAME="$(decode_item "$SOURCE_DIR" "$NAME")"
-      DIR_LIST="${DECODED_NAME}:${NAME}${EOL}${DIR_LIST}"
-    done
+      result="$(mount_remote_sshfs_rw "$SUB_DIR" 2>&1)"
+      if [ $? -ne 0 ]; then
+        log_error_line "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}/$SUB_DIR\" on \"$SSHFS_MOUNT_PATH\" failed! Aborting backup for $SOURCE_DIR"
+        log_error_line "$result"
+        RET=1
+        continue
+      fi
 
-    # Unmount, else the connection may timeout before we use it again (below)
-    umount_remote_sshfs
+      # Look for already existing snapshot directories
+      # First get a list of all the snapshot folders
+      DIR_LIST=""
+      IFS=$EOL
+      for ITEM in `find "$SSHFS_MOUNT_PATH/" -maxdepth 1 -mindepth 1 -type d`; do
+        NAME="$(basename "$ITEM")"
+        DECODED_NAME="$(decode_item "$SOURCE_DIR" "$NAME")"
+        DIR_LIST="${DECODED_NAME}:${NAME}${EOL}${DIR_LIST}"
+      done
 
-    IFS=$EOL
-    for ITEM in `printf '%s\n' "$DIR_LIST" |sort -r |head -n3`; do
-      DECODED_NAME="$(echo "$ITEM" |cut -d':' -f1)"
-      ENCODED_NAME="$(echo "$ITEM" |cut -d':' -f2)"
+      # Unmount, else the connection may timeout before we use it again (below)
+      umount_remote_sshfs
 
-      case $DECODED_NAME in
-        .sync                ) if [ $VERBOSE -eq 1 ]; then
-                                 log_line ".sync ($ENCODED_NAME) folder found"
-                               fi
-                               ;;
-        snapshot_${CUR_DATE} ) FOUND_CURRENT=1
-                               if [ $VERBOSE -eq 1 ]; then
-                                 log_line "$DECODED_NAME ($ENCODED_NAME) current date folder found"
-                               fi
-                               ;;
-        snapshot_*           ) if [ -z "$LAST_SNAPSHOT_ENC" ]; then
-                                 LAST_SNAPSHOT_ENC="$ENCODED_NAME" # Use last snapshot as base
-                                 if [ $VERBOSE -eq 1 ]; then
-                                   log_line "$DECODED_NAME ($ENCODED_NAME) previous date folder found"
-                                 fi
-                               fi
-                               ;;
-      esac
-    done
+      IFS=$EOL
+      for ITEM in `printf '%s\n' "$DIR_LIST" |sort -r |head -n3`; do
+        DECODED_NAME="$(echo "$ITEM" |cut -d':' -f1)"
+        ENCODED_NAME="$(echo "$ITEM" |cut -d':' -f2)"
+
+        case $DECODED_NAME in
+          .sync                ) if [ $VERBOSE -eq 1 ]; then
+                                  log_line ".sync ($ENCODED_NAME) folder found"
+                                fi
+                                ;;
+          snapshot_${CUR_DATE} ) FOUND_CURRENT=1
+                                if [ $VERBOSE -eq 1 ]; then
+                                  log_line "$DECODED_NAME ($ENCODED_NAME) current date folder found"
+                                fi
+                                ;;
+          snapshot_*           ) if [ -z "$LAST_SNAPSHOT_ENC" ]; then
+                                  LAST_SNAPSHOT_ENC="$ENCODED_NAME" # Use last snapshot as base
+                                  if [ $VERBOSE -eq 1 ]; then
+                                    log_line "$DECODED_NAME ($ENCODED_NAME) previous date folder found"
+                                  fi
+                                fi
+                                ;;
+        esac
+      done
+    fi
 
     # Construct rsync line depending on the info we just retrieved
     # NOTE: We use rsync over ssh directly (without sshfs) as this is much faster
@@ -472,7 +473,9 @@ backup()
       RSYNC_LINE="$RSYNC_LINE $SOURCE_DIR/"
     fi
 
-    if [ $FOUND_CURRENT -eq 1 ]; then
+    if [ "$NO_SNAPSHOTS" = "1" ]; then
+      SNAPSHOT_DIR="."
+    elif [ $FOUND_CURRENT -eq 1 ]; then
       SNAPSHOT_DIR="snapshot_${CUR_DATE}"
     else
       SNAPSHOT_DIR=".sync"
@@ -483,32 +486,36 @@ backup()
       log_line "Exclude(s): $EXCLUDE"
     fi
 
-    if [ $VERBOSE -eq 1 ]; then
-      log_line "Looking for changes..."
-#      log_line "-> rsync -i --dry-run $RSYNC_LINE"
+    if [ "$NO_SNAPSHOTS" != "1" ]; then
+      if [ $VERBOSE -eq 1 ]; then
+        log_line "Looking for changes..."
+  #      log_line "-> rsync -i --dry-run $RSYNC_LINE"
+      fi
+
+      # Need to unset IFS for commandline parse to work properly
+      unset IFS
+      result="$(eval rsync -i --dry-run $RSYNC_LINE)"
+      retval=$?
+
+      # NOTE: Ignore root (eg. permission) changes with ' ./$' and non-regular files
+      change_count="$(printf "%s\n" "$result" |grep -v -e ' ./$' -e '^skipping non-regular file' |wc -l)"
+
+      if [ $retval -eq 24 ]; then
+        log_line "NOTE: rsync partial transfer due to vanished source files (24)"
+      elif [ $retval -ne 0 ]; then
+        log_error_line "ERROR: rsync failed ($retval)"
+        log_error_line "$result"
+        change_count=0
+        RET=1 # Flag error
+      fi
+
+      if [ $change_count -gt 0 ]; then
+        # Warning: Do NOT change the line below since it's used by --logview!
+        log_line "$change_count change(s) detected in source-path \"$SOURCE_DIR\" -> syncing to target-path \"$TARGET_PATH/$SUB_DIR\"..."
+      fi
     fi
 
-    # Need to unset IFS for commandline parse to work properly
-    unset IFS
-    result="$(eval rsync -i --dry-run $RSYNC_LINE)"
-    retval=$?
-
-    # NOTE: Ignore root (eg. permission) changes with ' ./$' and non-regular files
-    change_count="$(printf "%s\n" "$result" |grep -v -e ' ./$' -e '^skipping non-regular file' |wc -l)"
-
-    if [ $retval -eq 24 ]; then
-      log_line "NOTE: rsync partial transfer due to vanished source files (24)"
-    elif [ $retval -ne 0 ]; then
-      log_error_line "ERROR: rsync failed ($retval)"
-      log_error_line "$result"
-      change_count=0
-      RET=1 # Flag error
-    fi
-
-    if [ $change_count -gt 0 ]; then
-      # Warning: Do NOT change the line below since it's used by --logview!
-      log_line "$change_count change(s) detected in source-path \"$SOURCE_DIR\" -> syncing to target-path \"$TARGET_PATH/$SUB_DIR\"..."
-
+    if [ "$NO_SNAPSHOTS" = "1" -o $change_count -gt 0 ]; then
       RSYNC_LINE="-v --log-file=$LOG_FILE $RSYNC_LINE"
 
       if [ $VERBOSE -eq 1 ]; then
@@ -541,7 +548,7 @@ backup()
         RET=1 # Flag error
       fi
 
-      if [ $retval -eq 0 ]; then
+      if [ "$NO_SNAPSHOTS" != "1" -a $retval -eq 0 ]; then
         result="$(mount_remote_sshfs_rw "$SUB_DIR" 2>&1)"
         if [ $? -ne 0 ]; then
           log_error_line "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}/$SUB_DIR\" on \"$SSHFS_MOUNT_PATH\" failed. Unable to finish backup for $SOURCE_DIR!"
@@ -583,7 +590,7 @@ backup()
           fi
 
           umount_remote_sshfs
-       fi
+        fi
       fi
     else
       if [ $VERBOSE -eq 1 ]; then
