@@ -1,9 +1,9 @@
 #!/bin/sh
 
-MY_VERSION="0.1-BETA1"
+MY_VERSION="0.1-BETA2"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's BTRFS Snapshot Script
-# Last update: March 27, 2020
+# Last update: March 28, 2020
 # (C) Copyright 2020 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
@@ -27,6 +27,50 @@ MY_VERSION="0.1-BETA1"
 CONF_FILE="/etc/btrfs-snapshot.conf"
 
 SNAPSHOT_FOLDER_NAME=".snapshots"
+
+
+check_command()
+{
+  local path IFS
+
+  IFS=' '
+  for cmd in $*; do
+    if [ -n "$(which "$cmd" 2>/dev/null)" ]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+
+# Check whether a binary is available and if not, generate an error and stop program execution
+check_command_error()
+{
+  local IFS=' '
+
+  if ! check_command "$@"; then
+    printf "\033[40m\033[1;31mERROR  : Command(s) \"$(echo "$@" |tr ' ' '|')\" is/are not available!\033[0m\n" >&2
+    printf "\033[40m\033[1;31m         Please investigate. Quitting...\033[0m\n" >&2
+    echo ""
+    exit 1
+  fi
+}
+
+
+sanity_check()
+{
+
+  if [ -z "$BACKUP_ROOT" ]; then
+    echo "ERROR: Missing BACKUP_ROOT-variable in config file!" >&2
+    echo ""
+    exit 1
+  fi
+
+  check_command_error rsync
+  check_command_error btrfs
+  check_command_error date
+}
 
 
 cleanup_snapshots()
@@ -146,18 +190,8 @@ create_snapshot()
   else
     echo "* Found previous snapshot \"$LAST_SNAPSHOT\""
 
-    ## Check for most recent generation ID for most recent snapshot.
-    LAST_ID="$(btrfs sub find-new "$LAST_SNAPSHOT" 9999999 |cut -d" " -f4)"
-
-    if [ -z "$LAST_ID" -o ! $LAST_ID -gt 0 ]; then
-      echo "ERROR: Unable to obtain last generation ID" >&2
-      return 1
-    fi
-
-    #FIXME: Must decrement LAST_ID by 1?
-
-    # Get changed files count
-    COUNT="$(btrfs subvolume find-new "$ROOT_DIR" $LAST_ID |cut -d" " -f17-1000 |sed '/^$/d' |wc -l)"
+    # NOTE: Ignore root (eg. permission) changes with ' ./$' and non-regular files
+    COUNT="$(rsync -a --delete --itemize-changes --dry-run "$ROOT_DIR/" "$LAST_SNAPSHOT/" |grep -v -e ' ./$' -e '^skipping non-regular file' |wc -l)"
 
     if [ $COUNT -eq 0 ]; then
       echo "No files changed, skipping creating of a new snapshot"
@@ -190,11 +224,7 @@ fi
 # Source config file
 . "$CONF_FILE"
 
-if [ -z "$BACKUP_ROOT" ]; then
-  echo "ERROR: Missing BACKUP_ROOT-variable in config file!" >&2
-  echo ""
-  exit 1
-fi
+sanity_check
 
 if ! create_snapshot "$BACKUP_ROOT"; then
   echo ""
@@ -204,4 +234,3 @@ fi
 cleanup_snapshots "$BACKUP_ROOT/$SNAPSHOT_FOLDER_NAME"
 
 echo "$(date +'%b %d %k:%M:%S') All backups done..."
-

@@ -489,12 +489,12 @@ backup()
     if [ "$NO_SNAPSHOTS" != "1" ]; then
       if [ $VERBOSE -eq 1 ]; then
         log_line "Looking for changes..."
-  #      log_line "-> rsync -i --dry-run $RSYNC_LINE"
+  #      log_line "-> rsync --itemize-changes --dry-run $RSYNC_LINE"
       fi
 
       # Need to unset IFS for commandline parse to work properly
       unset IFS
-      result="$(eval rsync -i --dry-run $RSYNC_LINE)"
+      result="$(eval rsync --itemize-changes --dry-run $RSYNC_LINE)"
       retval=$?
 
       # NOTE: Ignore root (eg. permission) changes with ' ./$' and non-regular files
