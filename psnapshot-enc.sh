@@ -1,6 +1,6 @@
 #!/bin/sh
 
-MY_VERSION="0.40-BETA3"
+MY_VERSION="0.40-BETA4"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
 # Last update: March 29, 2020
@@ -531,12 +531,18 @@ backup()
 #        log_line "-> rsync $RSYNC_LINE"
 #      fi
 
-      if [ $DECODE -eq 0 ]; then
-        eval rsync $RSYNC_LINE 2>&1 |grep -v -e ' ./$' -e '^skipping non-regular file'
-        retval=$?
+      if [ $VERBOSE -eq 1 ]; then
+        eval rsync $RSYNC_LINE 2>&1
+	      retval=$?
       else
-        eval rsync $RSYNC_LINE 2>&1 |grep -v -e ' ./$' -e '^skipping non-regular file' |rsync_parse "$SOURCE_DIR" "$TARGET_PATH/$SUB_DIR"
+        result="$(eval rsync $RSYNC_LINE 2>&1)"
         retval=$?
+
+        if [ $DECODE -eq 0 ]; then
+          echo "$result" |grep -v -e ' ./$' -e '^skipping non-regular file'
+        else
+	        echo "$result" |grep -v -e ' ./$' -e '^skipping non-regular file' |rsync_parse "$SOURCE_DIR" "$TARGET_PATH/$SUB_DIR"
+        fi
       fi
 
       echo ""
