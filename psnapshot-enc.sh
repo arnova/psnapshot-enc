@@ -1,6 +1,6 @@
 #!/bin/sh
 
-MY_VERSION="0.40-BETA4"
+MY_VERSION="0.40-BETA5"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
 # Last update: March 29, 2020
@@ -486,37 +486,32 @@ backup()
       log_line "Exclude(s): $EXCLUDE"
     fi
 
-    change_count=0
-    if [ "$NO_SNAPSHOTS" != "1" ]; then
-      if [ $VERBOSE -eq 1 ]; then
-        log_line "Looking for changes..."
-  #      log_line "-> rsync --itemize-changes --dry-run $RSYNC_LINE"
-      fi
-
-      # Need to unset IFS for commandline parse to work properly
-      unset IFS
-      result="$(eval rsync --itemize-changes --dry-run $RSYNC_LINE)"
-      retval=$?
-
-      # NOTE: Ignore root (eg. permission) changes with ' ./$' and non-regular files
-      change_count="$(printf "%s\n" "$result" |grep -v -e ' ./$' -e '^skipping non-regular file' |wc -l)"
-
-      if [ $retval -eq 24 ]; then
-        log_line "NOTE: rsync partial transfer due to vanished source files (24)"
-      elif [ $retval -ne 0 ]; then
-        log_error_line "ERROR: rsync failed ($retval)"
-        log_error_line "$result"
-        change_count=0
-        RET=1 # Flag error
-      fi
-
-      if [ $change_count -gt 0 ]; then
-        # Warning: Do NOT change the line below since it's used by --logview!
-        log_line "$change_count change(s) detected in source-path \"$SOURCE_DIR\" -> syncing to target-path \"$TARGET_PATH/$SUB_DIR\"..."
-      fi
+    if [ $VERBOSE -eq 1 ]; then
+      log_line "Looking for changes..."
+#      log_line "-> rsync --itemize-changes --dry-run $RSYNC_LINE"
     fi
 
-    if [ "$NO_SNAPSHOTS" = "1" -o $change_count -gt 0 ]; then
+    # Need to unset IFS for commandline parse to work properly
+    unset IFS
+    result="$(eval rsync --itemize-changes --dry-run $RSYNC_LINE)"
+    retval=$?
+
+    # NOTE: Ignore root (eg. permission) changes with ' ./$' and non-regular files
+    change_count="$(printf "%s\n" "$result" |grep -v -e ' ./$' -e '^skipping non-regular file' |wc -l)"
+
+    if [ $retval -eq 24 ]; then
+      log_line "NOTE: rsync partial transfer due to vanished source files (24)"
+    elif [ $retval -ne 0 ]; then
+      log_error_line "ERROR: rsync failed ($retval)"
+      log_error_line "$result"
+      change_count=0
+      RET=1 # Flag error
+    fi
+
+    if [ $change_count -gt 0 ]; then
+      # Warning: Do NOT change the line below since it's used by --logview!
+      log_line "$change_count change(s) detected in source-path \"$SOURCE_DIR\" -> syncing to target-path \"$TARGET_PATH/$SUB_DIR\"..."
+
       RSYNC_LINE="--log-file=$LOG_FILE $RSYNC_LINE"
 
       if [ $VERBOSE -eq 1 ]; then
@@ -531,18 +526,14 @@ backup()
 #        log_line "-> rsync $RSYNC_LINE"
 #      fi
 
-      if [ $VERBOSE -eq 1 ]; then
+      if [ $DECODE -eq 0 ]; then
         eval rsync $RSYNC_LINE 2>&1
-	      retval=$?
+        retval=$?
       else
         result="$(eval rsync $RSYNC_LINE 2>&1)"
         retval=$?
 
-        if [ $DECODE -eq 0 ]; then
-          echo "$result" |grep -v -e ' ./$' -e '^skipping non-regular file'
-        else
-	        echo "$result" |grep -v -e ' ./$' -e '^skipping non-regular file' |rsync_parse "$SOURCE_DIR" "$TARGET_PATH/$SUB_DIR"
-        fi
+        echo "$result" |rsync_parse "$SOURCE_DIR" "$TARGET_PATH/$SUB_DIR"
       fi
 
       echo ""
