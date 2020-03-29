@@ -1,9 +1,9 @@
 #!/bin/sh
 
-MY_VERSION="0.40-BETA2"
+MY_VERSION="0.40-BETA3"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
-# Last update: March 28, 2020
+# Last update: March 29, 2020
 # (C) Copyright 2014-2020 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
@@ -486,6 +486,7 @@ backup()
       log_line "Exclude(s): $EXCLUDE"
     fi
 
+    change_count=0
     if [ "$NO_SNAPSHOTS" != "1" ]; then
       if [ $VERBOSE -eq 1 ]; then
         log_line "Looking for changes..."
@@ -516,10 +517,10 @@ backup()
     fi
 
     if [ "$NO_SNAPSHOTS" = "1" -o $change_count -gt 0 ]; then
-      RSYNC_LINE="-v --log-file=$LOG_FILE $RSYNC_LINE"
+      RSYNC_LINE="--log-file=$LOG_FILE $RSYNC_LINE"
 
       if [ $VERBOSE -eq 1 ]; then
-        RSYNC_LINE="--progress $RSYNC_LINE"
+        RSYNC_LINE="-v --progress $RSYNC_LINE"
       fi
 
       if [ $DRY_RUN -eq 1 ]; then
@@ -531,10 +532,10 @@ backup()
 #      fi
 
       if [ $DECODE -eq 0 ]; then
-        eval rsync $RSYNC_LINE 2>&1
+        eval rsync $RSYNC_LINE 2>&1 |grep -v -e ' ./$' -e '^skipping non-regular file'
         retval=$?
       else
-        eval rsync $RSYNC_LINE 2>&1 |rsync_parse "$SOURCE_DIR" "$TARGET_PATH/$SUB_DIR"
+        eval rsync $RSYNC_LINE 2>&1 |grep -v -e ' ./$' -e '^skipping non-regular file' |rsync_parse "$SOURCE_DIR" "$TARGET_PATH/$SUB_DIR"
         retval=$?
       fi
 
