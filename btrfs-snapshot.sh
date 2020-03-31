@@ -1,9 +1,9 @@
 #!/bin/sh
 
-MY_VERSION="0.1-BETA2"
+MY_VERSION="0.1-BETA4"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's BTRFS Snapshot Script
-# Last update: March 28, 2020
+# Last update: March 31, 2020
 # (C) Copyright 2020 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
@@ -99,9 +99,11 @@ cleanup_snapshots()
   SNAPSHOT_DIR_LIST="$(find "$SNAPSHOT_SUBDIR/" -maxdepth 1 -mindepth 1 -type d |sort -r)"
   COUNT_TOTAL="$(echo "$SNAPSHOT_DIR_LIST" |wc -l)"
 
+  echo "* Currently have $COUNT_TOTAL snapshot(s) stored"
+
   # Make sure there are sufficient backups
   if [ $COUNT_TOTAL -le 3 ]; then
-    echo "NOTE: Not performing cleanup due to low amount of existing backups($COUNT_TOTAL)"
+    echo "  NOTE: Not performing cleanup due to low amount of existing backups($COUNT_TOTAL)"
     return 0
   fi
 
@@ -125,7 +127,7 @@ cleanup_snapshots()
     if [ $DAILY_COUNT -lt $DAILY_KEEP ]; then
       DAILY_COUNT=$((DAILY_COUNT + 1))
       # We want to keep this day
-      echo "KEEP DAILY  : $DIR_NAME"
+      echo "  KEEP DAILY  : $DIR_NAME"
       KEEP=1
     fi
 
@@ -136,7 +138,7 @@ cleanup_snapshots()
         MONTHLY_COUNT=$((MONTHLY_COUNT + 1))
         MONTH_LAST=$MONTH_MTIME
 
-        echo "KEEP MONTHLY: $DIR_NAME"
+        echo "  KEEP MONTHLY: $DIR_NAME"
         YEAR_LAST=$YEAR_MTIME
         KEEP=1
       fi
@@ -148,18 +150,18 @@ cleanup_snapshots()
         YEAR_LAST=$YEAR_MTIME
 
         # We want to keep this year
-        echo "KEEP YEARLY : $DIR_NAME"
+        echo "  KEEP YEARLY : $DIR_NAME"
         KEEP=1
       fi
     fi
 
     if [ $KEEP -eq 0 ]; then
-      echo "REMOVE      : $DIR_NAME"
-      echo " btrfs subvolume delete $SNAPSHOT_DIR"
+      echo "  REMOVE      : $DIR_NAME"
+      echo "    btrfs subvolume delete $SNAPSHOT_DIR"
 
       if [ $DRY_RUN -eq 0 ]; then
         if ! btrfs subvolume delete "$SNAPSHOT_DIR"; then
-          echo "ERROR: Removing snapshot $SNAPSHOT_DIR failed" >&2
+          echo "  ERROR: Removing snapshot $SNAPSHOT_DIR failed" >&2
           return 1
         fi
       fi
@@ -191,16 +193,16 @@ create_snapshot()
     echo "* Found previous snapshot \"$LAST_SNAPSHOT\""
 
     # NOTE: Ignore root (eg. permission) changes with ' ./$' and non-regular files
-    COUNT="$(rsync -a --delete --itemize-changes --dry-run "$ROOT_DIR/" "$LAST_SNAPSHOT/" |grep -v -e ' ./$' -e '^skipping non-regular file' |wc -l)"
+    COUNT="$(rsync -a --delete --itemize-changes --dry-run --exclude=.snapshots/ "$ROOT_DIR/" "$LAST_SNAPSHOT/" |grep -v -e ' ./$' -e '^skipping non-regular file' |wc -l)"
 
     if [ $COUNT -eq 0 ]; then
-      echo "No files changed, skipping creating of a new snapshot"
+      echo "* No changes found, skipping creating of a new snapshot"
       return 1
     fi
   fi
 
   # Create read-only snapshot
-  echo "* Creating snapshot \"$ROOT_DIR/$SNAPSHOT_FOLDER_NAME/$TODAY\""
+  echo "* Changes found, creating new snapshot"
   if ! btrfs subvolume snapshot -r "$ROOT_DIR" "$ROOT_DIR/$SNAPSHOT_FOLDER_NAME/$TODAY"; then
     echo "ERROR: Unable to create btrfs snapshot" >&2
     return 1
