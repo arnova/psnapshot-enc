@@ -431,7 +431,7 @@ backup()
 
     # Construct rsync line depending on the info we just retrieved
     # NOTE: We use rsync over ssh directly (without sshfs) as this is much faster
-    RSYNC_LINE="-rtlx --safe-links --fuzzy --delete --delete-after --delete-excluded -e 'ssh -q -c $SSH_CIPHER'"
+    RSYNC_LINE="-rtlx --safe-links --fuzzy --delete --delete-after --delete-excluded --log-format='%o: %n%L' -e 'ssh -q -c $SSH_CIPHER'"
 
     LIMIT=0
     if [ -n "$LIMIT_KB" ]; then
@@ -493,7 +493,7 @@ backup()
 
     # Need to unset IFS for commandline parse to work properly
     unset IFS
-    result="$(eval rsync --itemize-changes --dry-run $RSYNC_LINE)"
+    result="$(eval rsync --dry-run $RSYNC_LINE)"
     retval=$?
 
     # NOTE: Ignore root (eg. permission) changes with ' ./$' and non-regular files
@@ -512,7 +512,7 @@ backup()
       # Warning: Do NOT change the line below since it's used by --logview!
       log_line "$change_count change(s) detected in source-path \"$SOURCE_DIR\" -> syncing to target-path \"$TARGET_PATH/$SUB_DIR\"..."
 
-      RSYNC_LINE="--log-file=$LOG_FILE --log-format='%o: %n%L' $RSYNC_LINE"
+      RSYNC_LINE="--log-file=$LOG_FILE $RSYNC_LINE"
 
       if [ $VERBOSE -eq 1 ]; then
         RSYNC_LINE="-v --progress $RSYNC_LINE"
