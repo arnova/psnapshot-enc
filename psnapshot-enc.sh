@@ -1,9 +1,9 @@
 #!/bin/sh
 
-MY_VERSION="0.40-BETA5"
+MY_VERSION="0.40-BETA6"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
-# Last update: March 29, 2020
+# Last update: March 31, 2020
 # (C) Copyright 2014-2020 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
@@ -431,7 +431,7 @@ backup()
 
     # Construct rsync line depending on the info we just retrieved
     # NOTE: We use rsync over ssh directly (without sshfs) as this is much faster
-    RSYNC_LINE="-rtlx --safe-links --fuzzy --delete --delete-after --delete-excluded --log-format='%o: %n%L' -e 'ssh -q -c $SSH_CIPHER'"
+    RSYNC_LINE="-rtlx --safe-links --fuzzy --delete --delete-after --delete-excluded -e 'ssh -q -c $SSH_CIPHER'"
 
     LIMIT=0
     if [ -n "$LIMIT_KB" ]; then
@@ -512,7 +512,7 @@ backup()
       # Warning: Do NOT change the line below since it's used by --logview!
       log_line "$change_count change(s) detected in source-path \"$SOURCE_DIR\" -> syncing to target-path \"$TARGET_PATH/$SUB_DIR\"..."
 
-      RSYNC_LINE="--log-file=$LOG_FILE $RSYNC_LINE"
+      RSYNC_LINE="--log-file=$LOG_FILE --log-format='%o: %n%L' $RSYNC_LINE"
 
       if [ $VERBOSE -eq 1 ]; then
         RSYNC_LINE="-v --progress $RSYNC_LINE"
