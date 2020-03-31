@@ -497,7 +497,7 @@ backup()
     retval=$?
 
     # NOTE: Ignore root (eg. permission) changes with ' ./$' and non-regular files
-    change_count="$(printf "%s\n" "$result" |grep -v -e ' ./$' -e '^skipping non-regular file' |wc -l)"
+    change_count="$(printf "%s\n" "$result" |grep -v -e '^$' -e ' ./$' -e '^skipping non-regular file' |wc -l)"
 
     if [ $retval -eq 24 ]; then
       log_line "NOTE: rsync partial transfer due to vanished source files (24)"

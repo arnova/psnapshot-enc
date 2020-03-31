@@ -193,7 +193,7 @@ create_snapshot()
     echo "* Found previous snapshot \"$LAST_SNAPSHOT\""
 
     # NOTE: Ignore root (eg. permission) changes with ' ./$' and non-regular files
-    COUNT="$(rsync -a --delete --itemize-changes --dry-run --exclude=.snapshots/ "$ROOT_DIR/" "$LAST_SNAPSHOT/" |grep -v -e ' ./$' -e '^skipping non-regular file' |wc -l)"
+    COUNT="$(rsync -a --delete --itemize-changes --dry-run --exclude=.snapshots/ "$ROOT_DIR/" "$LAST_SNAPSHOT/" |grep -v -e '^$' -e ' ./$' -e '^skipping non-regular file' |wc -l)"
 
     if [ $COUNT -eq 0 ]; then
       echo "* No changes found, skipping creating of a new snapshot"
