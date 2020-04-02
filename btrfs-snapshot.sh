@@ -1,9 +1,9 @@
 #!/bin/sh
 
-MY_VERSION="0.1-BETA4"
+MY_VERSION="0.1-BETA5"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's BTRFS Snapshot Script
-# Last update: March 31, 2020
+# Last update: April 2, 2020
 # (C) Copyright 2020 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
@@ -28,6 +28,8 @@ CONF_FILE="/etc/btrfs-snapshot.conf"
 
 SNAPSHOT_FOLDER_NAME=".snapshots"
 
+EOL='
+'
 
 check_command()
 {
