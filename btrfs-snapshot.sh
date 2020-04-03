@@ -1,9 +1,9 @@
 #!/bin/sh
 
-MY_VERSION="0.1-BETA5"
+MY_VERSION="0.1-BETA6"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's BTRFS Snapshot Script
-# Last update: April 2, 2020
+# Last update: April 3, 2020
 # (C) Copyright 2020 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
@@ -178,6 +178,7 @@ cleanup_snapshots()
 create_snapshot()
 {
   local ROOT_DIR="$1"
+  local COUNT=0
 
   TODAY="$(date +%Y-%m-%d)"
   echo "* Today is: \"$TODAY\""
@@ -204,7 +205,7 @@ create_snapshot()
   fi
 
   # Create read-only snapshot
-  echo "* Changes found, creating new snapshot"
+  echo "* $COUNT change(s) found, creating new snapshot"
   if ! btrfs subvolume snapshot -r "$ROOT_DIR" "$ROOT_DIR/$SNAPSHOT_FOLDER_NAME/$TODAY"; then
     echo "ERROR: Unable to create btrfs snapshot" >&2
     return 1
