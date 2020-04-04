@@ -1,9 +1,9 @@
 #!/bin/sh
 
-MY_VERSION="0.1-BETA6"
+MY_VERSION="0.1-BETA7"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's BTRFS Snapshot Script
-# Last update: April 3, 2020
+# Last update: April 4, 2020
 # (C) Copyright 2020 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
@@ -196,10 +196,10 @@ create_snapshot()
     echo "* Found previous snapshot \"$LAST_SNAPSHOT\""
 
     # NOTE: Ignore root (eg. permission) changes with ' ./$' and non-regular files
-    COUNT="$(rsync -a --delete --itemize-changes --dry-run --exclude=.snapshots/ "$ROOT_DIR/" "$LAST_SNAPSHOT/" |grep -v -e '^$' -e ' ./$' -e '^skipping non-regular file' |wc -l)"
+    COUNT="$(rsync -a --delete --log-format='%o: %n%L' --exclude=.snapshots/ --dry-run "$ROOT_DIR/" "$LAST_SNAPSHOT/" |grep -e '^send: ' -e '^del\.: '|grep -v -e '^$' -e ' ./$' -e '^skipping non-regular file' |wc -l)"
 
     if [ $COUNT -eq 0 ]; then
-      echo "* No changes found, skipping creating of a new snapshot"
+      echo "* No changes found, skipping creation of a new snapshot"
       return 1
     fi
   fi
