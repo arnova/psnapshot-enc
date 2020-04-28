@@ -1,9 +1,9 @@
 #!/bin/sh
 
-MY_VERSION="0.1-BETA7"
+MY_VERSION="0.1-BETA8"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's BTRFS Snapshot Script
-# Last update: April 4, 2020
+# Last update: April 28, 2020
 # (C) Copyright 2020 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
@@ -28,6 +28,7 @@ CONF_FILE="/etc/btrfs-snapshot.conf"
 
 SNAPSHOT_FOLDER_NAME=".snapshots"
 
+DRY_RUN=0
 EOL='
 '
 
@@ -229,6 +230,10 @@ fi
 # Source config file
 . "$CONF_FILE"
 
+if [ "$1" = "--dryrun" -o "$1" = "-n" ]; then
+  DRY_RUN=1
+fi
+
 sanity_check
 
 if ! create_snapshot "$BACKUP_ROOT"; then
@@ -239,3 +244,4 @@ fi
 cleanup_snapshots "$BACKUP_ROOT/$SNAPSHOT_FOLDER_NAME"
 
 echo "$(date +'%b %d %k:%M:%S') All backups done..."
+
