@@ -1053,8 +1053,10 @@ process_commandline_and_load_conf()
   # Check arguments
   while [ -n "$1" ]; do
     ARG="$1"
-    ARGNAME=`echo "$ARG" |cut -d= -f1`
-    ARGVAL=`echo "$ARG" |cut -d= -f2 -s`
+    ARGNAME="${ARG%%=*}"
+    # Can't directly obtain value as = is optional!:
+    ARGVAL="${ARG#$ARGNAME}"
+    ARGVAL="${ARGVAL#=}"
 
     case "$ARGNAME" in
               --conf|-c) if [ -z "$ARGVAL" ]; then
