@@ -1,10 +1,10 @@
 #!/bin/sh
 
-MY_VERSION="0.40-BETA6"
+MY_VERSION="0.40-BETA7"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
-# Last update: March 31, 2020
-# (C) Copyright 2014-2020 by Arno van Amersfoort
+# Last update: May 22, 2021
+# (C) Copyright 2014-2021 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
 #                         (note: you must remove all spaces and substitute the @ and the . at the proper locations!)
@@ -1059,6 +1059,7 @@ process_commandline_and_load_conf()
     case "$ARGNAME" in
               --conf|-c) if [ -z "$ARGVAL" ]; then
                            echo "ERROR: Bad command syntax with argument \"$ARG\"" >&2
+                           echo "" >&2
                            show_help
                            exit 1
                          else
@@ -1067,6 +1068,7 @@ process_commandline_and_load_conf()
                          ;;
                --cipher) if [ -z "$ARGVAL" ]; then
                            echo "ERROR: Bad command syntax with argument \"$ARG\"" >&2
+                           echo "" >&2
                            show_help
                            exit 1
                          else
@@ -1075,6 +1077,7 @@ process_commandline_and_load_conf()
                          ;;
               --logview) if [ -z "$ARGVAL" ]; then
                            echo "ERROR: Bad command syntax with argument \"$ARG\"" >&2
+                           echo "" >&2
                            show_help
                            exit 1
                          else
@@ -1083,6 +1086,7 @@ process_commandline_and_load_conf()
                          ;;
                 --mount) if [ -z "$ARGVAL" ]; then
                            echo "ERROR: Bad command syntax with argument \"$ARG\"" >&2
+                           echo "" >&2
                            show_help
                            exit 1
                          else
@@ -1091,6 +1095,7 @@ process_commandline_and_load_conf()
                          ;;
               --mountrw) if [ -z "$ARGVAL" ]; then
                            echo "ERROR: Bad command syntax with argument \"$ARG\"" >&2
+                           echo "" >&2
                            show_help
                            exit 1
                          else
@@ -1099,6 +1104,7 @@ process_commandline_and_load_conf()
                          ;;
              --snapdate) if [ -z "$ARGVAL" ]; then
                            echo "ERROR: Bad command syntax with argument \"$ARG\"" >&2
+                           echo "" >&2
                            show_help
                            exit 1
                          else
@@ -1125,6 +1131,7 @@ process_commandline_and_load_conf()
                              OPT_CONF_FILE="$*"
                            else
                              echo "ERROR: Bad command syntax with argument \"$*\"" >&2
+                             echo "" >&2
                              show_help
                              exit 1
                            fi
@@ -1132,6 +1139,7 @@ process_commandline_and_load_conf()
                          break # We're done
                          ;;
                      -*) echo "ERROR: Bad argument \"$ARG\"" >&2
+                         echo "" >&2
                          show_help
                          exit 1
                          ;;
@@ -1139,6 +1147,7 @@ process_commandline_and_load_conf()
                            OPT_CONF_FILE="$ARG"
                          else
                            echo "ERROR: Bad command syntax with argument \"$ARG\"" >&2
+                           echo "" >&2
                            show_help
                            exit 1
                          fi
@@ -1175,7 +1184,7 @@ process_commandline_and_load_conf()
 
 # Mainline:
 ###########
-echo "psnapshot-enc v$MY_VERSION - (C) Copyright 2014-2020 by Arno van Amersfoort"
+echo "psnapshot-enc v$MY_VERSION - (C) Copyright 2014-2021 by Arno van Amersfoort"
 echo ""
 
 process_commandline_and_load_conf $*
