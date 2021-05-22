@@ -148,7 +148,7 @@ show_help()
   echo "--run                       - Perform actual cleanup (else only dry-run)" >&2
   echo "--verbose                   - Be verbose with displaying info" >&2
   echo "--conf|-c={config_file}     - Specify alternate configuration file (default=$CONF_FILE)" >&2
-  echo ""
+  echo "" >&2
 }
 
 

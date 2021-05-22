@@ -969,7 +969,7 @@ show_help()
   echo "--logview={log_file}        - View (decoded) log file" >&2
   echo "--conf|-c={config_file}     - Specify alternate configuration file (default=${CONF_FILE})" >&2
   echo "--cipher={cipher}           - Specify SSH cipher (default=${SSH_CIPHER})" >&2
-  echo ""
+  echo "" >&2
 }
 
 
