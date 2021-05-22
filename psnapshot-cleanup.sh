@@ -163,12 +163,15 @@ process_commandline_and_load_conf()
   # Check arguments
   while [ -n "$1" ]; do
     ARG="$1"
-    ARGNAME=`echo "$ARG" |cut -d= -f1`
-    ARGVAL=`echo "$ARG" |cut -d= -f2 -s`
+    ARGNAME="${ARG%%=*}"
+    # Can't directly obtain value as = is optional!:
+    ARGVAL="${ARG#$ARGNAME}"
+    ARGVAL="${ARGVAL#=}"
 
     case "$ARGNAME" in
               --conf|-c) if [ -z "$ARGVAL" ]; then
                            echo "ERROR: Bad command syntax with argument \"$ARG\"" >&2
+                           echo "" >&2
                            show_help
                            exit 1
                          else
@@ -187,6 +190,7 @@ process_commandline_and_load_conf()
                              OPT_CONF_FILE="$*"
                            else
                              echo "ERROR: Bad command syntax with argument \"$*\"" >&2
+                             echo "" >&2
                              show_help
                              exit 1
                            fi
@@ -194,6 +198,7 @@ process_commandline_and_load_conf()
                          break # We're done
                          ;;
                      -*) echo "ERROR: Bad argument \"$ARG\"" >&2
+                         echo "" >&2
                          show_help
                          exit 1
                          ;;
@@ -201,6 +206,7 @@ process_commandline_and_load_conf()
                            OPT_CONF_FILE="$ARG"
                          else
                            echo "ERROR: Bad command syntax with argument \"$ARG\"" >&2
+                           echo "" >&2
                            show_help
                            exit 1
                          fi
