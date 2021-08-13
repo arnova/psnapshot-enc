@@ -885,24 +885,33 @@ view_log_file()
   IFS=$EOL
   while read LINE; do
     # Detect rsync log line:
-    # Simple check to determine whether this is an itemized list of changes:
-#    if echo "$LINE" |grep -E -q '\[[0-9]+\]'; then
-    if echo "$LINE" |grep -q -e '^send' -e '^del\.'; then
-      if [ -n "$SOURCE_PATH" ]; then
-        PREFIX="${LINE%: *}"
-        PARSE="${LINE#*: }"
-        echo "$PREFIX $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$PARSE")"
-      else
-        # Just print the line
-        echo "$LINE"
-      fi
-    else
+    if [ -z "$SOURCE_PATH" ]; then
+      # Just print the line
+      echo "$LINE"
+
       # Get SOURCE_DIR from log
-      if echo "$LINE" |grep -E -q '^.* [0-9]+ change\(s\) detected '; then
+      if echo "$LINE" |grep -E -q '^.* - [0-9]+ change\(s\) detected in '; then
         # Get source/target info from this line
         SOURCE_PATH="$(echo "$LINE" |cut -d\" -f2)"
         TARGET_BASE_PATH="$(echo "$LINE" |cut -d\" -f4)"
       fi
+    elif echo "$LINE" |grep -q -e '^send' -e '^del\.'; then
+     # Simple check to determine whether this is an itemized list of changes
+#    elif echo "$LINE" |grep -E -q '\[[0-9]+\]'; then
+      
+        PREFIX="${LINE% *}"
+        PARSE="${LINE#* }"
+        echo "$PREFIX $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$PARSE")"
+    elif echo "$LINE" |grep -q -e '^rsync:.*\".*\"'; then
+      PREFIX="$(echo "$LINE" |cut -d'"' -f1)"
+      BASE_AND_FN="$(echo "$LINE" |cut -d'"' -f2)"
+      SUFFIX="$(echo "$LINE" |cut -d'"' -f3)"
+
+      PARSE="${BASE_AND_FN#$TARGET_BASE_PATH/}"
+
+      echo "$PREFIX \"$(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$PARSE")\" $SUFFIX"
+    #FIXME:
+    else
 
       echo "$LINE"
     fi
