@@ -1,6 +1,6 @@
 #!/bin/sh
 
-MY_VERSION="0.40-BETA8"
+MY_VERSION="0.40-BETA9"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
 # Last update: August 12, 2021
@@ -516,7 +516,7 @@ backup()
       log_line "$change_count change(s) detected for source-path \"$SOURCE_DIR\" -> target-path \"$TARGET_PATH/$SUB_DIR\"..."
       log_line "Syncing changes..."
 
-      RSYNC_LINE="--log-file=$LOG_FILE $RSYNC_LINE"
+      RSYNC_LINE="--log-file=$LOG_FILE --log-file-format='%o(%i): %n' $RSYNC_LINE"
 
       if [ $VERBOSE -eq 1 ]; then
         RSYNC_LINE="-v --progress $RSYNC_LINE"
@@ -893,12 +893,10 @@ view_log_file()
         SOURCE_PATH="$(echo "$LINE" |cut -d\" -f2)"
         TARGET_BASE_PATH="$(echo "$LINE" |cut -d\" -f4)"
       fi
-    elif echo "$LINE" |grep -q -e '^send' -e '^del\.'; then     # Detect rsync log line
-     # Simple check to determine whether this is an itemized list of changes
-#    elif echo "$LINE" |grep -E -q '\[[0-9]+\]'; then
-        PREFIX="${LINE%: *}"
-        PARSE="${LINE#*: }"
-        echo "$PREFIX $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$PARSE")"
+    elif echo "$LINE" |grep -q -E ': [^ ]+$'; then     # rsync filename log line
+      PREFIX="${LINE%%: *}"
+      PARSE="${LINE#*: }"
+      echo "${PREFIX}: $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$PARSE")" # rsync error log line
     elif echo "$LINE" |grep -q -e '^rsync:.*\".*\"'; then
       PREFIX="$(echo "$LINE" |cut -d'"' -f1)"
       BASE_AND_FN="$(echo "$LINE" |cut -d'"' -f2)"
@@ -906,7 +904,7 @@ view_log_file()
 
       PARSE="${BASE_AND_FN#$TARGET_BASE_PATH/}"
 
-      echo "${PREFIX}\"$(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$PARSE")\"${SUFFIX}"
+      echo "${PREFIX}:\"$(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$PARSE")\"${SUFFIX}"
     else
       # Just print the line
       echo "$LINE"
