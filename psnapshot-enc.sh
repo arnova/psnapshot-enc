@@ -884,9 +884,7 @@ view_log_file()
 
   IFS=$EOL
   while read LINE; do
-    # Detect rsync log line:
     if [ -z "$SOURCE_PATH" ]; then
-      # Just print the line
       echo "$LINE"
 
       # Get SOURCE_DIR from log
@@ -895,7 +893,7 @@ view_log_file()
         SOURCE_PATH="$(echo "$LINE" |cut -d\" -f2)"
         TARGET_BASE_PATH="$(echo "$LINE" |cut -d\" -f4)"
       fi
-    elif echo "$LINE" |grep -q -e '^send' -e '^del\.'; then
+    elif echo "$LINE" |grep -q -e '^send' -e '^del\.'; then     # Detect rsync log line
      # Simple check to determine whether this is an itemized list of changes
 #    elif echo "$LINE" |grep -E -q '\[[0-9]+\]'; then
       
@@ -909,10 +907,9 @@ view_log_file()
 
       PARSE="${BASE_AND_FN#$TARGET_BASE_PATH/}"
 
-      echo "$PREFIX \"$(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$PARSE")\" $SUFFIX"
-    #FIXME:
+      echo "${PREFIX}\"$(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$PARSE")\"${SUFFIX}"
     else
-
+      # Just print the line
       echo "$LINE"
     fi
   done < "$LOG_FILE"
