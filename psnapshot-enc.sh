@@ -285,15 +285,15 @@ rsync_parse()
   IFS=$EOL
   while read LINE; do
     case "$LINE" in
-                          "send: "*) echo "send: $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1 -d' ' --complement)")"
+                            "send"*) echo "send: $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1 -d' ' --complement)")"
                                      ;;
-                          "del.: "*) echo "del.: $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1 -d' ' --complement)")"
+                            "del."*) echo "del.: $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1 -d' ' --complement)")"
                                      ;;
-                      "*deleting "*) echo "*deleting: $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1 -d' ' --complement)")"
+                       "*deleting"*) echo "*deleting: $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1 -d' ' --complement)")"
                                      ;;
-      "skipping non-regular file "*) echo "skipping non-regular file $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1,2,3 -d' ' --complement)")"
+       "skipping non-regular file"*) echo "skipping non-regular file $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1,2,3 -d' ' --complement)")"
                                      ;;
-              "created directory "*) echo "created directory $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1,2 -d' ' --complement)")"
+               "created directory"*) echo "created directory $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1,2 -d' ' --complement)")"
                                      ;;
                                   *) ITEM_CHANGE_CHECK="$(echo "$LINE" |cut -d' ' -f1)"
                                      if echo "$ITEM_CHANGE_CHECK" |grep -E -q '^[c<\.][fdL][\.\+\?cst]+'; then
@@ -409,16 +409,16 @@ backup()
         ENCODED_NAME="$(echo "$ITEM" |cut -d':' -f2)"
 
         case $DECODED_NAME in
-          .sync                ) if [ $VERBOSE -eq 1 ]; then
+         .sync                ) if [ $VERBOSE -eq 1 ]; then
                                   log_line ".sync ($ENCODED_NAME) folder found"
                                 fi
                                 ;;
-          snapshot_${CUR_DATE} ) FOUND_CURRENT=1
+         snapshot_${CUR_DATE} ) FOUND_CURRENT=1
                                 if [ $VERBOSE -eq 1 ]; then
                                   log_line "$DECODED_NAME ($ENCODED_NAME) current date folder found"
                                 fi
                                 ;;
-          snapshot_*           ) if [ -z "$LAST_SNAPSHOT_ENC" ]; then
+         snapshot_*           ) if [ -z "$LAST_SNAPSHOT_ENC" ]; then
                                   LAST_SNAPSHOT_ENC="$ENCODED_NAME" # Use last snapshot as base
                                   if [ $VERBOSE -eq 1 ]; then
                                     log_line "$DECODED_NAME ($ENCODED_NAME) previous date folder found"
@@ -431,7 +431,7 @@ backup()
 
     # Construct rsync line depending on the info we just retrieved
     # NOTE: We use rsync over ssh directly (without sshfs) as this is much faster
-    RSYNC_LINE="-rtlx --safe-links --fuzzy --delete --delete-after --delete-excluded --log-format='%i %n' -e 'ssh -q -c $SSH_CIPHER'"
+    RSYNC_LINE="-rtlx --safe-links --fuzzy --delete --delete-after --delete-excluded --log-format='%o(%i): %n' -e 'ssh -q -c $SSH_CIPHER'"
 
     LIMIT=0
     if [ -n "$LIMIT_KB" ]; then
@@ -497,14 +497,14 @@ backup()
     retval=$?
 
     # NOTE: Ignore root (eg. permission) changes with ' ./$' and non-regular files
-    change_count="$(printf "%s\n" "$result" |grep -e '^send: ' -e '^del\.: ' |grep -v -e '^send: \./$' |wc -l)"
+    change_count="$(printf "%s\n" "$result" |grep -e '^send' -e '^del\.' |grep -v -e '^send.*\./$' |wc -l)"
 
     if [ $retval -eq 24 ]; then
       log_line "NOTE: Simulated rsync returned partial transfer due to vanished source files (24)"
     elif [ $retval -eq 23 ]; then
       log_error_line "WARNING: Simulated rsync returned partial transfer due to error (23)"
     elif [ $retval -ne 0 ]; then
-      log_line "$change_count change(s) detected in source-path \"$SOURCE_DIR\" -> target-path \"$TARGET_PATH/$SUB_DIR\"..."
+      log_line "$change_count change(s) detected for source-path \"$SOURCE_DIR\" -> target-path \"$TARGET_PATH/$SUB_DIR\"..."
       log_error_line "ERROR: Simulated rsync failed ($retval)"
       log_error_line "$result"
       change_count=0
@@ -513,7 +513,7 @@ backup()
 
     if [ $change_count -gt 0 ]; then
       # Warning: Do NOT change the line below since it's used by --logview!
-      log_line "$change_count change(s) detected in source-path \"$SOURCE_DIR\" -> target-path \"$TARGET_PATH/$SUB_DIR\"..."
+      log_line "$change_count change(s) detected for source-path \"$SOURCE_DIR\" -> target-path \"$TARGET_PATH/$SUB_DIR\"..."
       log_line "Syncing changes..."
 
       RSYNC_LINE="--log-file=$LOG_FILE $RSYNC_LINE"
@@ -537,7 +537,7 @@ backup()
         result="$(eval rsync $RSYNC_LINE 2>&1)"
         retval=$?
 
-        echo "$result" |rsync_parse "$SOURCE_DIR" "$TARGET_PATH/$SUB_DIR"
+        rsync_decode_path "$SOURCE_DIR" "$TARGET_PATH/$SUB_DIR" "$result"
       fi
 
       echo ""
@@ -885,19 +885,20 @@ view_log_file()
   IFS=$EOL
   while read LINE; do
     # Detect rsync log line:
-    if echo "$LINE" |grep -E -q '\[[0-9]+\]'; then
-      # Simple check to determine whether this is an itemized list of changes
+    # Simple check to determine whether this is an itemized list of changes:
+#    if echo "$LINE" |grep -E -q '\[[0-9]+\]'; then
+    if echo "$LINE" |grep -q -e '^send' -e '^del\.'; then
       if [ -n "$SOURCE_PATH" ]; then
-        PREFIX="$(echo "$LINE" |cut -d' ' -f1,2,3)"
-        PARSE="$(echo "$LINE" |cut -d' ' -f1,2,3 --complement)"
-        echo "$PREFIX $(echo "$PARSE" |rsync_parse "$SOURCE_PATH" "$TARGET_BASE_PATH")"
+        PREFIX="${LINE%: *}"
+        PARSE="${LINE#*: }"
+        echo "$PREFIX $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$PARSE")"
       else
         # Just print the line
         echo "$LINE"
       fi
     else
       # Get SOURCE_DIR from log
-      if echo "$LINE" |grep -E -q '^.* - [0-9]+ change\(s\) detected in '; then
+      if echo "$LINE" |grep -E -q '^.* [0-9]+ change\(s\) detected '; then
         # Get source/target info from this line
         SOURCE_PATH="$(echo "$LINE" |cut -d\" -f2)"
         TARGET_BASE_PATH="$(echo "$LINE" |cut -d\" -f4)"
