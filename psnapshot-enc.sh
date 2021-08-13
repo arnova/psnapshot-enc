@@ -1,9 +1,9 @@
 #!/bin/sh
 
-MY_VERSION="0.40-BETA7"
+MY_VERSION="0.40-BETA8"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
-# Last update: May 22, 2021
+# Last update: August 12, 2021
 # (C) Copyright 2014-2021 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
@@ -431,7 +431,7 @@ backup()
 
     # Construct rsync line depending on the info we just retrieved
     # NOTE: We use rsync over ssh directly (without sshfs) as this is much faster
-    RSYNC_LINE="-rtlx --safe-links --fuzzy --delete --delete-after --delete-excluded --log-format='%o: %n%L' -e 'ssh -q -c $SSH_CIPHER'"
+    RSYNC_LINE="-rtlx --safe-links --fuzzy --delete --delete-after --delete-excluded --log-format='%i %n' -e 'ssh -q -c $SSH_CIPHER'"
 
     LIMIT=0
     if [ -n "$LIMIT_KB" ]; then
@@ -493,16 +493,19 @@ backup()
 
     # Need to unset IFS for commandline parse to work properly
     unset IFS
-    result="$(eval rsync --dry-run $RSYNC_LINE)"
+    result="$(eval rsync --dry-run $RSYNC_LINE 2>&1)"
     retval=$?
 
     # NOTE: Ignore root (eg. permission) changes with ' ./$' and non-regular files
     change_count="$(printf "%s\n" "$result" |grep -e '^send: ' -e '^del\.: ' |grep -v -e '^send: \./$' |wc -l)"
 
     if [ $retval -eq 24 ]; then
-      log_line "NOTE: rsync partial transfer due to vanished source files (24)"
+      log_line "NOTE: Simulated rsync returned partial transfer due to vanished source files (24)"
+    elif [ $retval -eq 23 ]; then
+      log_error_line "WARNING: Simulated rsync returned partial transfer due to error (23)"
     elif [ $retval -ne 0 ]; then
-      log_error_line "ERROR: rsync failed ($retval)"
+      log_line "$change_count change(s) detected in source-path \"$SOURCE_DIR\" -> target-path \"$TARGET_PATH/$SUB_DIR\"..."
+      log_error_line "ERROR: Simulated rsync failed ($retval)"
       log_error_line "$result"
       change_count=0
       RET=1 # Flag error
@@ -510,7 +513,8 @@ backup()
 
     if [ $change_count -gt 0 ]; then
       # Warning: Do NOT change the line below since it's used by --logview!
-      log_line "$change_count change(s) detected in source-path \"$SOURCE_DIR\" -> syncing to target-path \"$TARGET_PATH/$SUB_DIR\"..."
+      log_line "$change_count change(s) detected in source-path \"$SOURCE_DIR\" -> target-path \"$TARGET_PATH/$SUB_DIR\"..."
+      log_line "Syncing changes..."
 
       RSYNC_LINE="--log-file=$LOG_FILE $RSYNC_LINE"
 
