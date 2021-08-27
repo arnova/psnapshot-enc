@@ -3,7 +3,7 @@
 MY_VERSION="0.40-BETA9"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
-# Last update: August 12, 2021
+# Last update: August 27, 2021
 # (C) Copyright 2014-2021 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
@@ -276,38 +276,6 @@ rsync_decode_path()
 }
 
 
-rsync_parse()
-{
-  local SOURCE_PATH="$1"
-  local TARGET_BASE_PATH="$2"
-
-  # NOTE: This is currently really slow due to encfsctl decode performing really bad
-  IFS=$EOL
-  while read LINE; do
-    case "$LINE" in
-                            "send"*) echo "send: $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1 -d' ' --complement)")"
-                                     ;;
-                            "del."*) echo "del.: $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1 -d' ' --complement)")"
-                                     ;;
-                       "*deleting"*) echo "*deleting: $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1 -d' ' --complement)")"
-                                     ;;
-       "skipping non-regular file"*) echo "skipping non-regular file $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1,2,3 -d' ' --complement)")"
-                                     ;;
-               "created directory"*) echo "created directory $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1,2 -d' ' --complement)")"
-                                     ;;
-                                  *) ITEM_CHANGE_CHECK="$(echo "$LINE" |cut -d' ' -f1)"
-                                     if echo "$ITEM_CHANGE_CHECK" |grep -E -q '^[c<\.][fdL][\.\+\?cst]+'; then
-                                       # Itemized line:
-                                       echo "$ITEM_CHANGE_CHECK $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1 -d' ' --complement)")"
-                                     else
-                                       echo "$LINE"
-                                     fi
-                                     ;;
-    esac
-  done
-}
-
-
 check_command()
 {
   local path IFS
@@ -537,7 +505,7 @@ backup()
         result="$(eval rsync $RSYNC_LINE 2>&1)"
         retval=$?
 
-        rsync_decode_path "$SOURCE_DIR" "$TARGET_PATH/$SUB_DIR" "$result"
+        echo "$result" |rsync_parse "$SOURCE_DIR" "$TARGET_PATH/$SUB_DIR"
       fi
 
       echo ""
@@ -865,6 +833,38 @@ cleanup_remote_backups()
   done
 
   return $RET
+}
+
+
+rsync_parse()
+{
+  local SOURCE_PATH="$1"
+  local TARGET_BASE_PATH="$2"
+
+  # NOTE: This is currently really slow due to encfsctl decode performing really bad
+  IFS=$EOL
+  while read LINE; do
+    case "$LINE" in
+                            "send"*) echo "send: $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1 -d' ' --complement)")"
+                                     ;;
+                            "del."*) echo "del.: $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1 -d' ' --complement)")"
+                                     ;;
+                       "*deleting"*) echo "*deleting: $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1 -d' ' --complement)")"
+                                     ;;
+       "skipping non-regular file"*) echo "skipping non-regular file $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1,2,3 -d' ' --complement)")"
+                                     ;;
+               "created directory"*) echo "created directory $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1,2 -d' ' --complement)")"
+                                     ;;
+                                  *) ITEM_CHANGE_CHECK="$(echo "$LINE" |cut -d' ' -f1)"
+                                     if echo "$ITEM_CHANGE_CHECK" |grep -E -q '^[c<\.][fdL][\.\+\?cst]+'; then
+                                       # Itemized line:
+                                       echo "$ITEM_CHANGE_CHECK $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1 -d' ' --complement)")"
+                                     else
+                                       echo "$LINE"
+                                     fi
+                                     ;;
+    esac
+  done
 }
 
 
