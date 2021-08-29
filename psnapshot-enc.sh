@@ -45,8 +45,8 @@ log_error_line()
 {
   DATE=`date '+%Y-%m-%d %H:%M:%S'`
 
-  printf "$DATE - %s\n" "$1" >&2
-  printf "$DATE - %s\n" "$1" >> "$LOG_FILE"
+  printf "$DATE %s\n" "$1" >&2
+  printf "$DATE %s\n" "$1" >> "$LOG_FILE"
 }
 
 
@@ -54,8 +54,8 @@ log_line()
 {
   DATE=`date '+%Y-%m-%d %H:%M:%S'`
 
-  printf "$DATE - %s\n" "$1"
-  printf "$DATE - %s\n" "$1" >> "$LOG_FILE"
+  printf "$DATE %s\n" "$1"
+  printf "$DATE %s\n" "$1" >> "$LOG_FILE"
 }
 
 
