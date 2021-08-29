@@ -1,9 +1,9 @@
 #!/bin/sh
 
-MY_VERSION="0.40-BETA9"
+MY_VERSION="0.40-BETA10"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
-# Last update: August 27, 2021
+# Last update: August 29, 2021
 # (C) Copyright 2014-2021 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
@@ -836,34 +836,49 @@ cleanup_remote_backups()
 }
 
 
+rsync_decode_line()
+{
+  local SOURCE_PATH="$1"
+  local TARGET_BASE_PATH="$2"
+  local LINE="$3"
+
+  if echo "$LINE" |grep -q ': '; then
+    PREFIX="${LINE%: *}"
+
+    # Strip of optional rsync timetag/id
+    PREFIX_STRIPPED="${PREFIX#*\] }"
+
+    if echo "$PREFIX_STRIPPED" |grep -q -E -e '^(send|del\.|created directory|skipping non-regular file)' -e '^[c<\.][fdL][\.\+\?cst]+'; then
+      # Simple check to determine whether this is an itemized list of changes
+      PARSE="${LINE#*: }"
+      echo "${PREFIX}: $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$PARSE")"
+    elif echo "$PREFIX_STRIPPED" |grep -q '^rsync: .*".*"'; then
+      LEFT="$(echo "$LINE" |cut -d'"' -f1)"
+      BASE_AND_FN="$(echo "$LINE" |cut -d'"' -f2)"
+      RIGHT="$(echo "$LINE" |cut -d'"' -f3)"
+
+      PARSE="${BASE_AND_FN#$TARGET_BASE_PATH/}"
+
+      echo "${LEFT}\"$(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$PARSE")\"${RIGHT}"
+    else
+      # Just print the line
+      echo "$LINE"
+    fi
+  else
+    # Just print the line
+    echo "$LINE"
+  fi
+}
+
+
 rsync_parse()
 {
   local SOURCE_PATH="$1"
   local TARGET_BASE_PATH="$2"
 
-  # NOTE: This is currently really slow due to encfsctl decode performing really bad
   IFS=$EOL
   while read LINE; do
-    case "$LINE" in
-                            "send"*) echo "send: $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1 -d' ' --complement)")"
-                                     ;;
-                            "del."*) echo "del.: $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1 -d' ' --complement)")"
-                                     ;;
-                       "*deleting"*) echo "*deleting: $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1 -d' ' --complement)")"
-                                     ;;
-       "skipping non-regular file"*) echo "skipping non-regular file $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1,2,3 -d' ' --complement)")"
-                                     ;;
-               "created directory"*) echo "created directory $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1,2 -d' ' --complement)")"
-                                     ;;
-                                  *) ITEM_CHANGE_CHECK="$(echo "$LINE" |cut -d' ' -f1)"
-                                     if echo "$ITEM_CHANGE_CHECK" |grep -E -q '^[c<\.][fdL][\.\+\?cst]+'; then
-                                       # Itemized line:
-                                       echo "$ITEM_CHANGE_CHECK $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$(echo "$LINE" |cut -f1 -d' ' --complement)")"
-                                     else
-                                       echo "$LINE"
-                                     fi
-                                     ;;
-    esac
+    rsync_decode_line "$SOURCE_PATH" "$TARGET_BASE_PATH" "$LINE"
   done
 }
 
@@ -893,21 +908,8 @@ view_log_file()
         SOURCE_PATH="$(echo "$LINE" |cut -d\" -f2)"
         TARGET_BASE_PATH="$(echo "$LINE" |cut -d\" -f4)"
       fi
-    elif echo "$LINE" |grep -q -E ': [^ ]+$'; then     # rsync filename log line
-      PREFIX="${LINE%%: *}"
-      PARSE="${LINE#*: }"
-      echo "${PREFIX}: $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$PARSE")" # rsync error log line
-    elif echo "$LINE" |grep -q -e '^rsync:.*\".*\"'; then
-      PREFIX="$(echo "$LINE" |cut -d'"' -f1)"
-      BASE_AND_FN="$(echo "$LINE" |cut -d'"' -f2)"
-      SUFFIX="$(echo "$LINE" |cut -d'"' -f3)"
-
-      PARSE="${BASE_AND_FN#$TARGET_BASE_PATH/}"
-
-      echo "${PREFIX}:\"$(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$PARSE")\"${SUFFIX}"
     else
-      # Just print the line
-      echo "$LINE"
+      rsync_decode_line "$SOURCE_PATH" "$TARGET_BASE_PATH" "$LINE"
     fi
   done < "$LOG_FILE"
 }
