@@ -1,9 +1,9 @@
 #!/bin/sh
 
-MY_VERSION="0.40-BETA10"
+MY_VERSION="0.40-BETA11"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
-# Last update: August 29, 2021
+# Last update: September 18, 2021
 # (C) Copyright 2014-2021 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
@@ -649,6 +649,7 @@ remote_init()
 
 backup_bg_process()
 {
+  log_line "psnapshot-enc v$MY_VERSION - (C) Copyright 2014-2021 by Arno van Amersfoort"
   log_line "Starting background thread and checking for changes every $SLEEP_TIME minutes..."
 
   sleep $((INITIAL_SLEEP_TIME * 60)) # Initial delay (default = 15 minutes)
@@ -845,13 +846,21 @@ rsync_decode_line()
   if echo "$LINE" |grep -q ': '; then
     PREFIX="${LINE%: *}"
 
-    # Strip of optional rsync timetag/id
+    # Strip off optional rsync timetag/id
     PREFIX_STRIPPED="${PREFIX#*\] }"
 
-    if echo "$PREFIX_STRIPPED" |grep -q -E -e '^(send|del\.|created directory|skipping non-regular file)' -e '^[c<\.][fdL][\.\+\?cst]+'; then
-      # Simple check to determine whether this is an itemized list of changes
+    # NOTE: Contains (simple) check to determine whether this is an itemized list of changes:
+    if echo "$PREFIX_STRIPPED" |grep -q -E -e '^(send|del\.|created directory)' -e '^[c<\.][fdL][\.\+\?cst]+'; then
       PARSE="${LINE#*: }"
       echo "${PREFIX}: $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$PARSE")"
+    elif echo "$PREFIX_STRIPPED" |grep -q -E -e '^(skipping non-regular file|file has vanished)'; then
+      LEFT="$(echo "$LINE" |cut -d'"' -f1)"
+      BASE_AND_FN="$(echo "$LINE" |cut -d'"' -f2)"
+      RIGHT="$(echo "$LINE" |cut -d'"' -f3)"
+
+      PARSE="${BASE_AND_FN#$ENCFS_MOUNT_PATH/}"
+
+      echo "${LEFT}\"$(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$PARSE")\"${RIGHT}"
     elif echo "$PREFIX_STRIPPED" |grep -q '^rsync: .*".*"'; then
       LEFT="$(echo "$LINE" |cut -d'"' -f1)"
       BASE_AND_FN="$(echo "$LINE" |cut -d'"' -f2)"
@@ -903,7 +912,7 @@ view_log_file()
       echo "$LINE"
 
       # Get SOURCE_DIR from log
-      if echo "$LINE" |grep -E -q '^.* - [0-9]+ change\(s\) detected '; then
+      if echo "$LINE" |grep -E -q '^.* [0-9]+ change\(s\) detected '; then
         # Get source/target info from this line
         SOURCE_PATH="$(echo "$LINE" |cut -d\" -f2)"
         TARGET_BASE_PATH="$(echo "$LINE" |cut -d\" -f4)"
