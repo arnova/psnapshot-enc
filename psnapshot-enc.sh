@@ -649,7 +649,6 @@ remote_init()
 
 backup_bg_process()
 {
-  log_line "psnapshot-enc v$MY_VERSION - (C) Copyright 2014-2021 by Arno van Amersfoort"
   log_line "Starting background thread and checking for changes every $SLEEP_TIME minutes..."
 
   sleep $((INITIAL_SLEEP_TIME * 60)) # Initial delay (default = 15 minutes)
@@ -1322,8 +1321,8 @@ else
       mv "${LOG_FILE}" "${LOG_FILE}.old"
     fi
 
-    # Truncate logfile
-    printf "" >"${LOG_FILE}"
+    # Truncate logfile and print header
+    printf "psnapshot-enc v$MY_VERSION - (C) Copyright 2014-2021 by Arno van Amersfoort" >"${LOG_FILE}"
 
     if [ $BACKGROUND -eq 1 ]; then
       backup_bg_process &
