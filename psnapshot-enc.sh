@@ -1322,7 +1322,7 @@ else
     fi
 
     # Truncate logfile and print header
-    printf "psnapshot-enc v$MY_VERSION - (C) Copyright 2014-2021 by Arno van Amersfoort" >"${LOG_FILE}"
+    printf "psnapshot-enc v$MY_VERSION - (C) Copyright 2014-2021 by Arno van Amersfoort\n" >"${LOG_FILE}"
 
     if [ $BACKGROUND -eq 1 ]; then
       backup_bg_process &
