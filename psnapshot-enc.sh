@@ -645,7 +645,9 @@ backup_bg_process()
 {
   log_line "Starting background thread and checking for changes every $SLEEP_TIME minutes..."
 
+  log_line "Performing startup sleep of $INITIAL_SLEEP_TIME minutes..."
   sleep $((INITIAL_SLEEP_TIME * 60)) # Initial delay (default = 15 minutes)
+
   while true; do
     result="$(backup 2>&1)"
     retval=$?
