@@ -847,23 +847,23 @@ rsync_decode_line()
     # NOTE: Contains (simple) check to determine whether this is an itemized list of changes:
     if echo "$PREFIX_STRIPPED" |grep -q -E -e '^(send|del\.|created directory)' -e '^[c<\.][fdL][\.\+\?cst]+'; then
       PARSE="${LINE#*: }"
-      echo "${PREFIX}: $(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$PARSE")"
+      echo "$LINE ($(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$PARSE"))"
     elif echo "$PREFIX_STRIPPED" |grep -q -E -e '^(skipping non-regular file|file has vanished)'; then
-      LEFT="$(echo "$LINE" |cut -d'"' -f1)"
+      LEFT="$(echo "$LINE" |cut -d'"' -f1,2)"
       BASE_AND_FN="$(echo "$LINE" |cut -d'"' -f2)"
       RIGHT="$(echo "$LINE" |cut -d'"' -f3)"
 
       PARSE="${BASE_AND_FN#$ENCFS_MOUNT_PATH/}"
 
-      echo "${LEFT}\"$(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$PARSE")\"${RIGHT}"
+      echo "${LEFT} ($(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$PARSE"))\"${RIGHT}"
     elif echo "$PREFIX_STRIPPED" |grep -q '^rsync: .*".*"'; then
-      LEFT="$(echo "$LINE" |cut -d'"' -f1)"
+      LEFT="$(echo "$LINE" |cut -d'"' -f1,2)"
       BASE_AND_FN="$(echo "$LINE" |cut -d'"' -f2)"
       RIGHT="$(echo "$LINE" |cut -d'"' -f3)"
 
       PARSE="${BASE_AND_FN#$TARGET_BASE_PATH/}"
 
-      echo "${LEFT}\"$(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$PARSE")\"${RIGHT}"
+      echo "${LEFT} ($(rsync_decode_path "$SOURCE_PATH" "$TARGET_BASE_PATH" "$PARSE"))\"${RIGHT}"
     else
       # Just print the line
       echo "$LINE"
