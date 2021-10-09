@@ -1,9 +1,9 @@
 #!/bin/sh
 
-MY_VERSION="0.40-BETA11"
+MY_VERSION="0.40-BETA12"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
-# Last update: September 18, 2021
+# Last update: October 8, 2021
 # (C) Copyright 2014-2021 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
@@ -397,9 +397,9 @@ backup()
       done
     fi
 
-    # Construct rsync line depending on the info we just retrieved
+    # Construct rsync line depending on the info we just retrieved. Explicitly do NOT sync permissions as this may cause (remote) problems
     # NOTE: We use rsync over ssh directly (without sshfs) as this is much faster
-    RSYNC_LINE="-rtlx --safe-links --fuzzy --delete --delete-after --delete-excluded --log-format='%o(%i): %n' -e 'ssh -q -c $SSH_CIPHER'"
+    RSYNC_LINE="-rtlx --safe-links --fuzzy --delete --delete-after --delete-excluded --log-format='%t %o(%i): %n' -e 'ssh -q -c $SSH_CIPHER'"
 
     LIMIT=0
     if [ -n "$LIMIT_KB" ]; then
@@ -454,8 +454,8 @@ backup()
       log_line "Exclude(s): $EXCLUDE"
     fi
 
-    if [ $VERBOSE -eq 1 ]; then
-      log_line "Looking for changes..."
+    if [ $VERBOSE -eq 1 -o $BACKGROUND -eq 0 ]; then
+      log_line "Checking changes for source-path \"$SOURCE_DIR\" -> target-path \"$TARGET_PATH/$SUB_DIR\"..."
 #      log_line "-> rsync --itemize-changes --dry-run $RSYNC_LINE"
     fi
 
@@ -465,16 +465,24 @@ backup()
     retval=$?
 
     # NOTE: Ignore root (eg. permission) changes with ' ./$' and non-regular files
-    change_count="$(printf "%s\n" "$result" |grep -e '^send' -e '^del\.' |grep -v -e '^send.*\./$' |wc -l)"
+    change_count="$(printf "%s\n" "$result" |grep -e ' send' -e ' del\.' |grep -v -e ' send.*\./$' |wc -l)"
 
     if [ $retval -eq 24 ]; then
       log_line "NOTE: Simulated rsync returned partial transfer due to vanished source files (24)"
+      if [ $change_count -eq 0 ]; then
+        echo "$result" |rsync_log_error "$SOURCE_DIR" "$TARGET_PATH/$SUB_DIR"
+      fi
     elif [ $retval -eq 23 ]; then
       log_error_line "WARNING: Simulated rsync returned partial transfer due to error (23)"
+      if [ $change_count -eq 0 ]; then
+        echo "$result" |rsync_log_error "$SOURCE_DIR" "$TARGET_PATH/$SUB_DIR"
+      fi
     elif [ $retval -ne 0 ]; then
       log_line "$change_count change(s) detected for source-path \"$SOURCE_DIR\" -> target-path \"$TARGET_PATH/$SUB_DIR\"..."
       log_error_line "ERROR: Simulated rsync failed ($retval)"
-      log_error_line "$result"
+
+      echo "$result" |rsync_log_error "$SOURCE_DIR" "$TARGET_PATH/$SUB_DIR"
+
       change_count=0
       RET=1 # Flag error
     fi
@@ -484,29 +492,17 @@ backup()
       log_line "$change_count change(s) detected for source-path \"$SOURCE_DIR\" -> target-path \"$TARGET_PATH/$SUB_DIR\"..."
       log_line "Syncing changes..."
 
-      RSYNC_LINE="--log-file=$LOG_FILE --log-file-format='%o(%i): %n' $RSYNC_LINE"
-
       if [ $VERBOSE -eq 1 ]; then
-        RSYNC_LINE="-v --progress $RSYNC_LINE"
+        RSYNC_LINE="--progress $RSYNC_LINE"
       fi
 
       if [ $DRY_RUN -eq 1 ]; then
         RSYNC_LINE="--dry-run $RSYNC_LINE"
       fi
 
-#      if [ $VERBOSE -eq 1 ]; then
-#        log_line "-> rsync $RSYNC_LINE"
-#      fi
-
-      if [ $DECODE -eq 0 ]; then
-        eval rsync $RSYNC_LINE 2>&1
-        retval=$?
-      else
-        result="$(eval rsync $RSYNC_LINE 2>&1)"
-        retval=$?
-
-        echo "$result" |rsync_parse "$SOURCE_DIR" "$TARGET_PATH/$SUB_DIR"
-      fi
+      exec 4>&1
+      retval=`{ { eval rsync $RSYNC_LINE 2>&1 3>&-; printf $? 1>&3; } 4>&- |rsync_log "$SOURCE_DIR" "$TARGET_PATH/$SUB_DIR" 1>&4; } 3>&1`
+      exec 4>&-
 
       echo ""
 
@@ -562,10 +558,8 @@ backup()
           umount_remote_sshfs
         fi
       fi
-    else
-      if [ $VERBOSE -eq 1 ]; then
-        log_line "No changes detected..."
-      fi
+    elif [ $VERBOSE -eq 1 -o $BACKGROUND -eq 0 ]; then
+      log_line "No changes detected..."
     fi
 
     if [ "$ENCFS_ENABLE" != "0" ]; then
@@ -846,7 +840,7 @@ rsync_decode_line()
     PREFIX="${LINE%: *}"
 
     # Strip off optional rsync timetag/id
-    PREFIX_STRIPPED="${PREFIX#*\] }"
+    PREFIX_STRIPPED="$(echo "$PREFIX" |sed -r 's,^[0-9]+/[0-9]+/[0-9]+ [0-9]+:[0-9]+:[0-9]+ (\[[0-9]+\] )?,,')"
 
     # NOTE: Contains (simple) check to determine whether this is an itemized list of changes:
     if echo "$PREFIX_STRIPPED" |grep -q -E -e '^(send|del\.|created directory)' -e '^[c<\.][fdL][\.\+\?cst]+'; then
@@ -886,7 +880,49 @@ rsync_parse()
 
   IFS=$EOL
   while read LINE; do
-    rsync_decode_line "$SOURCE_PATH" "$TARGET_BASE_PATH" "$LINE"
+    if [ $DECODE -eq 1 ]; then
+      rsync_decode_line "$SOURCE_PATH" "$TARGET_BASE_PATH" "$LINE"
+    else
+      echo "$LINE"
+    fi
+  done
+}
+
+
+rsync_log()
+{
+  local SOURCE_PATH="$1"
+  local TARGET_BASE_PATH="$2"
+
+  IFS=$EOL
+  while read LINE; do
+    if [ $DECODE -eq 1 ]; then
+      DECODED_LINE="$(rsync_decode_line "$SOURCE_PATH" "$TARGET_BASE_PATH" "$LINE")"
+      echo "$DECODED_LINE"
+      echo "$DECODED_LINE" >> "$LOG_FILE"
+    else
+      echo "$LINE"
+      echo "$LINE" >> "$LOG_FILE"
+    fi
+  done
+}
+
+
+rsync_log_error()
+{
+  local SOURCE_PATH="$1"
+  local TARGET_BASE_PATH="$2"
+
+  IFS=$EOL
+  while read LINE; do
+    if [ $DECODE -eq 1 ]; then
+      DECODED_LINE="$(rsync_decode_line "$SOURCE_PATH" "$TARGET_BASE_PATH" "$LINE")"
+      echo "$DECODED_LINE" >&2
+      echo "$DECODED_LINE" >> "$LOG_FILE"
+    else
+      echo "$LINE" >&2
+      echo "$LINE" >> "$LOG_FILE"
+    fi
   done
 }
 
