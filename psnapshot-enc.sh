@@ -485,6 +485,8 @@ backup()
 
       change_count=0
       RET=1 # Flag error
+    elif [ $VERBOSE -eq 1 -a -n "$result" ]; then
+      echo "$result" |rsync_log "$SOURCE_DIR" "$TARGET_PATH/$SUB_DIR"
     fi
 
     if [ $change_count -gt 0 ]; then
