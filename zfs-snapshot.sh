@@ -182,7 +182,6 @@ cleanup_snapshots()
 create_snapshot()
 {
   local VOL_DIR="$1"
-  local COUNT=0
 
   TODAY="$(date +%Y-%m-%d)"
   echo "* Today is: \"$TODAY\""
@@ -193,7 +192,7 @@ create_snapshot()
     return 1
   fi
 
-  local LAST_SNAPSHOT="$(echo "$SNAPSHOT_LIST" -head -n1)"
+  local LAST_SNAPSHOT="$(echo "$SNAPSHOT_LIST" |head -n1)"
   if [ -z "$LAST_SNAPSHOT" ]; then
     echo "* NOTE: No existing snapshot(s) found, generating initial one"
   else
@@ -205,11 +204,12 @@ create_snapshot()
     if [ $COUNT -eq 0 ]; then
       echo "* No changes found, skipping creation of a new snapshot"
       return 1
+    else
+      # Create read-only snapshot
+      echo "* $COUNT change(s) found, creating new snapshot"
     fi
   fi
 
-  # Create read-only snapshot
-  echo "* $COUNT change(s) found, creating new snapshot"
   if ! zfs snapshot "${VOL_DIR}@${TODAY}"; then
     echo "ERROR: Unable to create zfs snapshot" >&2
     return 1
