@@ -188,7 +188,7 @@ create_snapshot()
   echo "* Today is: \"$TODAY\""
 
   local SNAPSHOT_LIST="$(zfs list -H -t snapshot $VOL_DIR |cut -f1 |cut -d'@' -f2 |sort -r)"
-  if echo "$SNAPSHOT_LIST" |grep -q -x "$TODAY";
+  if echo "$SNAPSHOT_LIST" |grep -q -x "$TODAY"; then
     echo "* NOTE: Not creating snapshot since one already exists for \"$TODAY\"" >&2
     return 1
   fi
