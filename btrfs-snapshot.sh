@@ -1,10 +1,10 @@
 #!/bin/sh
 
-MY_VERSION="0.1-BETA8"
+MY_VERSION="0.1-BETA9"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's BTRFS Snapshot Script
-# Last update: April 28, 2020
-# (C) Copyright 2020 by Arno van Amersfoort
+# Last update: July 25, 2022
+# (C) Copyright 2020-2022 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
 #                         (note: you must remove all spaces and substitute the @ and the . at the proper locations!)
@@ -66,6 +66,12 @@ sanity_check()
 
   if [ -z "$BACKUP_ROOT" ]; then
     echo "ERROR: Missing BACKUP_ROOT-variable in config file!" >&2
+    echo ""
+    exit 1
+  fi
+
+  if [ ! -d "$BACKUP_ROOT" ]; then
+    echo "ERROR: BACKUP_ROOT path \"$BACKUP_ROOT\" does not exist!" >&2
     echo ""
     exit 1
   fi
