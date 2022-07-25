@@ -1,6 +1,6 @@
 #!/bin/sh
 
-MY_VERSION="0.1-BETA1"
+MY_VERSION="0.1-BETA2"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's ZFS Snapshot Script
 # Last update: July 25, 2022
@@ -62,8 +62,8 @@ check_command_error()
 sanity_check()
 {
 
-  if [ -z "$BACKUP_ZVOL" ]; then
-    echo "ERROR: Missing BACKUP_ZVOL-variable in config file!" >&2
+  if [ -z "$BACKUP_ZVOLS" ]; then
+    echo "ERROR: Missing BACKUP_ZVOLS-variable in config file!" >&2
     echo ""
     exit 1
   fi
@@ -71,10 +71,13 @@ sanity_check()
   check_command_error zfs
   check_command_error date
 
-  if ! zfs list "$BACKUP_ZVOL" >/dev/null 2>&1; then
-    echo "ERROR: Missing ZFS Volume(BACKUP_ZVOL) \"$BACKUP_ZVOL\" does not exist!" >&2
-    echo ""
-    exit 1
+  IFS=' '
+  for ZVOL in $BACKUP_ZVOLS; do
+    if ! zfs list "$ZVOL" >/dev/null 2>&1; then
+      echo "ERROR: Missing ZFS Volume(BACKUP_ZVOLS) \"$ZVOL\" does not exist!" >&2
+      echo ""
+      exit 1
+    fi
   fi
 }
 
@@ -239,11 +242,13 @@ fi
 
 sanity_check
 
-if ! create_snapshot "$BACKUP_ZVOL"; then
-  echo ""
-  exit 1
-fi
+IFS=' '
+for ZVOL in $BACKUP_ZVOLS; do
+  if ! create_snapshot "$ZVOL"; then
+    echo ""
+  else
+    cleanup_snapshots "$ZVOL"
+  fi
+done
 
-cleanup_snapshots "$BACKUP_ZVOL"
-
-echo "$(date +'%b %d %k:%M:%S') All backups done..."
+echo "$(date +'%b %d %k:%M:%S') All snapshots done..."

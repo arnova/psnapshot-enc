@@ -1,6 +1,6 @@
 #!/bin/sh
 
-MY_VERSION="0.1-BETA9"
+MY_VERSION="0.1-BETA10"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's BTRFS Snapshot Script
 # Last update: July 25, 2022
@@ -64,17 +64,20 @@ check_command_error()
 sanity_check()
 {
 
-  if [ -z "$BACKUP_ROOT" ]; then
-    echo "ERROR: Missing BACKUP_ROOT-variable in config file!" >&2
+  if [ -z "$BACKUP_VOLS" ]; then
+    echo "ERROR: Missing BACKUP_VOLS-variable in config file!" >&2
     echo ""
     exit 1
   fi
 
-  if [ ! -d "$BACKUP_ROOT" ]; then
-    echo "ERROR: BACKUP_ROOT path \"$BACKUP_ROOT\" does not exist!" >&2
-    echo ""
-    exit 1
-  fi
+  IFS=' '
+  for VOL in $BACKUP_VOLS; do
+    if [ ! -d "$VOL" ]; then
+      echo "ERROR: BACKUP_VOLS volume \"$VOL\" does not exist!" >&2
+      echo ""
+      exit 1
+    fi
+  done
 
   check_command_error rsync
   check_command_error btrfs
@@ -242,12 +245,14 @@ fi
 
 sanity_check
 
-if ! create_snapshot "$BACKUP_ROOT"; then
-  echo ""
-  exit 1
-fi
-
-cleanup_snapshots "$BACKUP_ROOT/$SNAPSHOT_FOLDER_NAME"
+IFS=' '
+for VOL in $BACKUP_VOLS; 
+  if ! create_snapshot "$VOL"; then
+    echo ""
+  else
+    cleanup_snapshots "$VOL/$SNAPSHOT_FOLDER_NAME"
+  fi
+done
 
 echo "$(date +'%b %d %k:%M:%S') All backups done..."
 
