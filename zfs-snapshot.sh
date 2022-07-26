@@ -244,6 +244,7 @@ sanity_check
 
 IFS=' '
 for ZVOL in $BACKUP_ZVOLS; do
+  echo "* Processing volume $ZVOL..."
   if ! create_snapshot "$ZVOL"; then
     echo ""
   else
@@ -252,3 +253,4 @@ for ZVOL in $BACKUP_ZVOLS; do
 done
 
 echo "$(date +'%b %d %k:%M:%S') All snapshots done..."
+
