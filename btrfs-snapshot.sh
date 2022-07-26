@@ -247,7 +247,7 @@ sanity_check
 
 IFS=' '
 for VOL in $BACKUP_VOLS; do
-  echo "* Processing volume $VOL..."
+  echo "* Processing volume \"$VOL\"..."
   if ! create_snapshot "$VOL"; then
     echo ""
   else
