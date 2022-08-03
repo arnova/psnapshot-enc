@@ -1,10 +1,10 @@
 #!/bin/sh
 
-MY_VERSION="0.40-BETA13"
+MY_VERSION="0.40-BETA14"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
-# Last update: October 9, 2021
-# (C) Copyright 2014-2021 by Arno van Amersfoort
+# Last update: August 3, 2022
+# (C) Copyright 2014-2022 by Arno van Amersfoort
 # Homepage              : http://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
 #                         (note: you must remove all spaces and substitute the @ and the . at the proper locations!)
@@ -397,9 +397,9 @@ backup()
       done
     fi
 
-    # Construct rsync line depending on the info we just retrieved. Explicitly do NOT sync permissions as this may cause (remote) problems
+    # Construct rsync line depending on the info we just retrieved. Do NOT sync SGID for directories as it seems rsync can't handle those properly
     # NOTE: We use rsync over ssh directly (without sshfs) as this is much faster
-    RSYNC_LINE="-rtlx --safe-links --fuzzy --delete --delete-after --delete-excluded --log-format='%o(%i): %n' -e 'ssh -q -c $SSH_CIPHER'"
+    RSYNC_LINE="-rtlxpA --chmod Dg-s --safe-links --fuzzy --delete --delete-after --delete-excluded --log-format='%o(%i): %n' -e 'ssh -q -c $SSH_CIPHER'"
 
     LIMIT=0
     if [ -n "$LIMIT_KB" ]; then
@@ -1231,7 +1231,7 @@ process_commandline_and_load_conf()
 
 # Mainline:
 ###########
-echo "psnapshot-enc v$MY_VERSION - (C) Copyright 2014-2021 by Arno van Amersfoort"
+echo "psnapshot-enc v$MY_VERSION - (C) Copyright 2014-2022 by Arno van Amersfoort"
 echo ""
 
 process_commandline_and_load_conf $*
