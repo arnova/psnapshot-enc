@@ -313,7 +313,7 @@ backup()
     return 1
   fi
 
-  CUR_DATE=`date "+%Y-%m-%d"`
+  local CUR_DATE=`date "+%Y-%m-%d"`
 
   IFS=' '
   for ITEM in $BACKUP_DIRS; do
@@ -510,7 +510,11 @@ backup()
         RET=1 # Flag error
       fi
 
+      log_line "Sync done..."
+
       if [ "$NO_SNAPSHOTS" != "1" -a $retval -eq 0 ]; then
+        log_line "Creating snapshot..."
+
         result="$(mount_remote_sshfs_rw "$SUB_DIR" 2>&1)"
         if [ $? -ne 0 ]; then
           log_error_line "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}/$SUB_DIR\" on \"$SSHFS_MOUNT_PATH\" failed. Unable to finish backup for $SOURCE_DIR!"
@@ -553,6 +557,8 @@ backup()
 
           umount_remote_sshfs
         fi
+
+        log_line "Snapshot done..."
       fi
     elif [ $VERBOSE -eq 1 -o $BACKGROUND -eq 0 ]; then
       log_line "No changes detected..."
