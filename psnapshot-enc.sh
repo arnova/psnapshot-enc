@@ -5,7 +5,7 @@ MY_VERSION="0.40-BETA14"
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
 # Last update: August 3, 2022
 # (C) Copyright 2014-2022 by Arno van Amersfoort
-# Homepage              : http://rocky.eld.leidenuniv.nl/
+# Homepage              : https://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
 #                         (note: you must remove all spaces and substitute the @ and the . at the proper locations!)
 # ----------------------------------------------------------------------------------------------------------------------

@@ -5,7 +5,7 @@ MY_VERSION="0.20-ALPHA2"
 # Arno's Push-Snapshot Server-Side Cleanup Script
 # Last update: December 29, 2017
 # (C) Copyright 2014-2018 by Arno van Amersfoort
-# Homepage              : http://rocky.eld.leidenuniv.nl/
+# Homepage              : https://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
 #                         (note: you must remove all spaces and substitute the @ and the . at the proper locations!)
 # ----------------------------------------------------------------------------------------------------------------------
