@@ -84,7 +84,7 @@ mount_remote_sshfs_ro()
 
 umount_remote_sshfs()
 {
-  fusermount -u "$SSHFS_MOUNT_PATH"
+  fusermount -z -u "$SSHFS_MOUNT_PATH"
 }
 
 
@@ -959,11 +959,14 @@ view_log_file()
 
 list_remote_snapshots()
 {
-  if ! mount_remote_sshfs_ro "$LIST_SNAPSHOTS"; then
-    echo "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}/${LIST_SNAPSHOTS}\" on \"$SSHFS_MOUNT_PATH\" failed!" >&2
+  local LIST_FOLDER="$1"
+
+  if ! mount_remote_sshfs_ro "$LIST_FOLDER"; then
+    echo "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}/${LIST_FOLDER}\" on \"$SSHFS_MOUNT_PATH\" failed!" >&2
     return 1
   fi
 
+  echo "* Listing contents of remote folder \"$LIST_FOLDER\":"
   find "$SSHFS_MOUNT_PATH/" -mindepth 1 -maxdepth 1 -type d |sed 's,.*/,,'
   echo ""
 
@@ -1258,7 +1261,7 @@ fi
 if [ -n "$LOG_VIEW" ]; then
   view_log_file "$LOG_VIEW"
 elif [ -n "$LIST_FOLDER" ]; then
-  list_remote_snapshots
+  list_remote_snapshots "$LIST_FOLDER"
 else
   if [ $UMOUNT -eq 1 ]; then
     if ! lock_enter; then
