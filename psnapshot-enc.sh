@@ -1,9 +1,9 @@
 #!/bin/sh
 
-MY_VERSION="0.40-BETA15"
+MY_VERSION="0.40-BETA16"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
-# Last update: October 18, 2022
+# Last update: October 19, 2022
 # (C) Copyright 2014-2022 by Arno van Amersfoort
 # Homepage              : https://rocky.eld.leidenuniv.nl/
 # Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
@@ -959,8 +959,8 @@ view_log_file()
 
 list_remote_snapshots()
 {
-  if ! mount_remote_sshfs_ro ".snapshots"; then
-    echo "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}\" on \"$SSHFS_MOUNT_PATH\" failed!" >&2
+  if ! mount_remote_sshfs_ro "$LIST_SNAPSHOTS"; then
+    echo "ERROR: SSHFS mount of \"${USER_AND_SERVER}:${TARGET_PATH}/${LIST_SNAPSHOTS}\" on \"$SSHFS_MOUNT_PATH\" failed!" >&2
     return 1
   fi
 
@@ -1012,10 +1012,9 @@ show_help()
   echo "--verbose                   - Be verbose with displaying info" >&2
   echo "--removelock|--rmlock       - Remove (stale) lock file" >&2
   echo "--background                - Background daemon mode" >&2
-  echo "--snaplist                  - List remote snapshots" >&2
-  echo "--mount={remote_dir}        - Mount remote sshfs+encfs backup folder (read-only)" >&2
-  echo "--mountrw={remote_dir}      - Mount remote sshfs+encfs backup folder (read-write)" >&2
-  echo "--snapdate={date}           - When mounting select snapshot {date} (instead of last)" >&2
+  echo "--list={remote_dir}         - List remote (snapshot) folder {remote_dir}" >&2
+  echo "--mount={remote_dir}        - Mount remote sshfs+encfs backup folder (read-only). Optionally prefix with snapshot-folder" >&2
+  echo "--mountrw={remote_dir}      - Mount remote sshfs+encfs backup folder (read-write). Optionally prefix with snapshot-folder" >&2
   echo "--umount                    - Umount remote sshfs+encfs filesystem" >&2
   echo "--cleanup                   - Cleanup backups according to configured dailies/monthlies/yearlies" >&2
   echo "--logview={log_file}        - View (decoded) log file" >&2
@@ -1089,7 +1088,6 @@ process_commandline_and_load_conf()
   INIT=0
   MOUNT_RO_PATH=""
   MOUNT_RW_PATH=""
-  SNAP_DATE=""
   UMOUNT=0
   BACKGROUND=0
   DECODE=0
@@ -1097,7 +1095,7 @@ process_commandline_and_load_conf()
   LOG_VIEW=""
   REMOVE_LOCK=0
   CLEANUP=0
-  LIST_SNAPSHOTS=0
+  LIST_FOLDER=""
 
   OPT_VERBOSE=0
   OPT_CONF_FILE=""
@@ -1156,16 +1154,15 @@ process_commandline_and_load_conf()
                            MOUNT_RW_PATH="$ARGVAL"
                          fi
                          ;;
-             --snapdate) if [ -z "$ARGVAL" ]; then
+                 --list) if [ -z "$ARGVAL" ]; then
                            echo "ERROR: Bad command syntax with argument \"$ARG\"" >&2
                            echo "" >&2
                            show_help
                            exit 1
                          else
-                           SNAP_DATE="$ARGVAL"
+                           LIST_FOLDER="$ARGVAL"
                          fi
                          ;;
-             --snaplist) LIST_SNAPSHOTS=1;;
        --dry-run|--test) DRY_RUN=1;;
         --background|-b) BACKGROUND=1;;
                --decode) DECODE=1;;
@@ -1260,7 +1257,7 @@ fi
 
 if [ -n "$LOG_VIEW" ]; then
   view_log_file "$LOG_VIEW"
-elif [ $LIST_SNAPSHOTS -eq 1 ]; then
+elif [ -n "$LIST_FOLDER" ]; then
   list_remote_snapshots
 else
   if [ $UMOUNT -eq 1 ]; then
@@ -1276,11 +1273,7 @@ else
       exit 2
     fi
 
-    if [ -n "$SNAP_DATE" ]; then
-      MOUNT_PATH=".snapshots/$SNAP_DATE/$MOUNT_RO_PATH"
-    else
-      MOUNT_PATH="$MOUNT_RO_PATH"
-    fi
+    MOUNT_PATH="$MOUNT_RO_PATH"
 
     echo "* Mounting (read-only) remote SSHFS/ENCFS filesystem \"${USER_AND_SERVER}:${TARGET_PATH}/$MOUNT_PATH\" on \"$ENCFS_MOUNT_PATH/\" (via \"$SSHFS_MOUNT_PATH\")"
 
