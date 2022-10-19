@@ -362,8 +362,8 @@ backup()
       # First get a list of all the snapshot folders
       DIR_LIST=""
       IFS=$EOL
-      for ITEM in `find "$SSHFS_MOUNT_PATH/" -maxdepth 1 -mindepth 1 -type d`; do
-        NAME="$(basename "$ITEM")"
+      for ITEM2 in `find "$SSHFS_MOUNT_PATH/" -maxdepth 1 -mindepth 1 -type d`; do
+        NAME="$(basename "$ITEM2")"
         DECODED_NAME="$(decode_item "$SOURCE_DIR" "$NAME")"
         DIR_LIST="${DECODED_NAME}:${NAME}${EOL}${DIR_LIST}"
       done
@@ -372,9 +372,9 @@ backup()
       umount_remote_sshfs
 
       IFS=$EOL
-      for ITEM in `printf '%s\n' "$DIR_LIST" |sort -r |head -n3`; do
-        DECODED_NAME="$(echo "$ITEM" |cut -d':' -f1)"
-        ENCODED_NAME="$(echo "$ITEM" |cut -d':' -f2)"
+      for ITEM2 in `printf '%s\n' "$DIR_LIST" |sort -r |head -n3`; do
+        DECODED_NAME="$(echo "$ITEM2" |cut -d':' -f1)"
+        ENCODED_NAME="$(echo "$ITEM2" |cut -d':' -f2)"
 
         case $DECODED_NAME in
          .sync                ) if [ $VERBOSE -eq 1 ]; then
@@ -1027,7 +1027,7 @@ show_help()
 
 sanity_check()
 {
-  if [ "$MOUNT" = "0" -a "$UMOUNT" = "0" ]; then
+  if [ -z "$MOUNT_RO_PATH" -a "$MOUNT_RW_PATH" -a "$UMOUNT" = "0" ]; then
     IFS=' '
     for ITEM in $BACKUP_DIRS; do
       # Determine folder name to use on target
@@ -1356,7 +1356,7 @@ else
     fi
 
     # Truncate logfile and print header
-    printf "psnapshot-enc v$MY_VERSION - (C) Copyright 2014-2022 by Arno van Amersfoort\n" >"${LOG_FILE}"
+    echo "psnapshot-enc v$MY_VERSION - (C) Copyright 2014-2022 by Arno van Amersfoort" >"${LOG_FILE}"
 
     if [ $BACKGROUND -eq 1 ]; then
       backup_bg_process &
