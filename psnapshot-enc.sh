@@ -874,6 +874,7 @@ rsync_decode_line()
 }
 
 
+# Currently not used:
 rsync_parse()
 {
   local SOURCE_PATH="$1"
@@ -1355,7 +1356,7 @@ else
     fi
 
     # Truncate logfile and print header
-    printf "psnapshot-enc v$MY_VERSION - (C) Copyright 2014-2021 by Arno van Amersfoort\n" >"${LOG_FILE}"
+    printf "psnapshot-enc v$MY_VERSION - (C) Copyright 2014-2022 by Arno van Amersfoort\n" >"${LOG_FILE}"
 
     if [ $BACKGROUND -eq 1 ]; then
       backup_bg_process &
