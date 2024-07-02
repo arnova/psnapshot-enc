@@ -461,7 +461,7 @@ backup()
 
     # Need to unset IFS for commandline parse to work properly
     unset IFS
-    result="$(eval rsync --dry-run $RSYNC_LINE 2>&1)"
+    result="$(rsync --dry-run $RSYNC_LINE 2>&1)"
     retval=$?
 
     # NOTE: Ignore root (eg. permission) changes with ' ./$' and non-regular files
