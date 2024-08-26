@@ -5,8 +5,8 @@ MY_VERSION="0.40-BETA16"
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
 # Last update: October 19, 2022
 # (C) Copyright 2014-2022 by Arno van Amersfoort
-# Homepage              : https://rocky.eld.leidenuniv.nl/
-# Email                 : a r n o v a AT r o c k y DOT e l d DOT l e i d e n u n i v DOT n l
+# Web                   : https://github.com/arnova/psnapshot-enc
+# Email                 : a r n o DOT v a n DOT a m e r s f o o r t AT g m a i l DOT c o m
 #                         (note: you must remove all spaces and substitute the @ and the . at the proper locations!)
 # ----------------------------------------------------------------------------------------------------------------------
 # This program is free software; you can redistribute it and/or
