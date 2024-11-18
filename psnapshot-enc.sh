@@ -43,7 +43,7 @@ TAB=$(printf "\t")
 
 log_error_line()
 {
-  DATE=`date '+%Y-%m-%d %H:%M:%S'`
+  DATE="$(date '+%Y-%m-%d %H:%M:%S')"
 
   printf "$DATE %s\n" "$1" >&2
   printf "$DATE %s\n" "$1" >> "$LOG_FILE"
@@ -52,7 +52,7 @@ log_error_line()
 
 log_line()
 {
-  DATE=`date '+%Y-%m-%d %H:%M:%S'`
+  DATE="$(date '+%Y-%m-%d %H:%M:%S')"
 
   printf "$DATE %s\n" "$1"
   printf "$DATE %s\n" "$1" >> "$LOG_FILE"
@@ -220,7 +220,7 @@ encode_item()
   local result
 
   if [ "$ENCFS_ENABLE" != "0" -a -n "$2" ]; then
-    result=`ENCFS6_CONFIG="$ENCFS_CONF_FILE" encfsctl encode --extpass="echo $ENCFS_PASSWORD" -- "$1" "$2"`
+    result="$(ENCFS6_CONFIG="$ENCFS_CONF_FILE" encfsctl encode --extpass="echo $ENCFS_PASSWORD" -- "$1" "$2")"
     if [ -n "$result" ]; then
       printf '%s\n' "$result"
       return
@@ -236,7 +236,7 @@ decode_item()
   local result
 
   if [ "$ENCFS_ENABLE" != "0" -a -n "$2" ]; then
-    result=`ENCFS6_CONFIG="$ENCFS_CONF_FILE" encfsctl decode --extpass="echo $ENCFS_PASSWORD" -- "$1" "$2"`
+    result="$(ENCFS6_CONFIG="$ENCFS_CONF_FILE" encfsctl decode --extpass="echo $ENCFS_PASSWORD" -- "$1" "$2")"
     if [ -n "$result" ]; then
       printf '%s\n' "$result"
       return
@@ -313,7 +313,7 @@ backup()
     return 1
   fi
 
-  local CUR_DATE=`date "+%Y-%m-%d"`
+  local CUR_DATE="$(date "+%Y-%m-%d")"
 
   IFS=' '
   for ITEM in $BACKUP_DIRS; do
@@ -362,7 +362,7 @@ backup()
       # First get a list of all the snapshot folders
       DIR_LIST=""
       IFS=$EOL
-      for ITEM2 in `find "$SSHFS_MOUNT_PATH/" -maxdepth 1 -mindepth 1 -type d`; do
+      for ITEM2 in $(find "$SSHFS_MOUNT_PATH/" -maxdepth 1 -mindepth 1 -type d); do
         NAME="$(basename "$ITEM2")"
         DECODED_NAME="$(decode_item "$SOURCE_DIR" "$NAME")"
         DIR_LIST="${DECODED_NAME}:${NAME}${EOL}${DIR_LIST}"
@@ -372,7 +372,7 @@ backup()
       umount_remote_sshfs
 
       IFS=$EOL
-      for ITEM2 in `printf '%s\n' "$DIR_LIST" |sort -r |head -n3`; do
+      for ITEM2 in $(printf '%s\n' "$DIR_LIST" |sort -r |head -n3); do
         DECODED_NAME="$(echo "$ITEM2" |cut -d':' -f1)"
         ENCODED_NAME="$(echo "$ITEM2" |cut -d':' -f2)"
 
@@ -404,7 +404,7 @@ backup()
     LIMIT=0
     if [ -n "$LIMIT_KB" ]; then
       if [ -n "$LIMIT_HOUR_START" -a -n "$LIMIT_HOUR_END" ]; then
-        CHOUR=`date +'%H'`
+        CHOUR="$(date +'%H')"
         if [ $LIMIT_HOUR_START -le $LIMIT_HOUR_END ]; then
           if [ $CHOUR -ge $LIMIT_HOUR_START -a $CHOUR -le $LIMIT_HOUR_END ]; then
             LIMIT=1
@@ -499,7 +499,7 @@ backup()
       fi
 
       exec 4>&1
-      retval=`{ { eval rsync $RSYNC_LINE 2>&1 3>&-; printf $? 1>&3; } 4>&- |rsync_log "$SOURCE_DIR" "$TARGET_PATH/$SUB_DIR" 1>&4; } 3>&1`
+      retval="$({ { eval rsync $RSYNC_LINE 2>&1 3>&-; printf $? 1>&3; } 4>&- |rsync_log "$SOURCE_DIR" "$TARGET_PATH/$SUB_DIR" 1>&4; } 3>&1)"
       exec 4>&-
 
       if [ $retval -eq 24 ]; then
@@ -799,7 +799,7 @@ cleanup_remote_backups()
   echo "* Performing cleanup for: $BACKUP_DIRS"
   echo "* Retention config: Dailies=$DAILY_KEEP Monthlies=$MONTHLY_KEEP Yearlies=$YEARLY_KEEP"
 
-  CUR_DATE=`date "+%Y-%m-%d"`
+  CUR_DATE="$(date "+%Y-%m-%d")"
 
   IFS=' '
   for ITEM in $BACKUP_DIRS; do
