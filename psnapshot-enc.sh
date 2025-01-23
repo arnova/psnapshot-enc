@@ -1,10 +1,10 @@
 #!/bin/sh
 
-MY_VERSION="0.40-BETA16"
+MY_VERSION="0.40-BETA18"
 # ----------------------------------------------------------------------------------------------------------------------
 # Arno's Push-Snapshot Script using ENCFS + RSYNC + SSH
-# Last update: October 19, 2022
-# (C) Copyright 2014-2022 by Arno van Amersfoort
+# Last update: January 23, 2025
+# (C) Copyright 2014-2025 by Arno van Amersfoort
 # Web                   : https://github.com/arnova/psnapshot-enc
 # Email                 : a r n o DOT v a n DOT a m e r s f o o r t AT g m a i l DOT c o m
 #                         (note: you must remove all spaces and substitute the @ and the . at the proper locations!)
@@ -399,7 +399,7 @@ backup()
 
     # Construct rsync line depending on the info we just retrieved. Do NOT sync SGID for directories as it seems rsync can't handle those properly
     # NOTE: We use rsync over ssh directly (without sshfs) as this is much faster
-    RSYNC_LINE="-rtlxpA --numeric-ids --chmod Dg-s --safe-links --fuzzy --delete --delete-after --delete-excluded --log-format='%o(%i): %n' -e 'ssh -q -c $SSH_CIPHER'"
+    RSYNC_LINE="-rtlxpA --numeric-ids --chmod Dg-s --safe-links --fuzzy --delete --delete-after --delete-excluded --log-format='%o(%i): %n' -e 'ssh -o Batchmode=yes -o PasswordAuthentication=no -q -c $SSH_CIPHER'"
 
     LIMIT=0
     if [ -n "$LIMIT_KB" ]; then
@@ -560,7 +560,7 @@ backup()
 
         log_line "Snapshot done..."
       fi
-    elif [ $VERBOSE -eq 1 -o $BACKGROUND -eq 0 ]; then
+    elif [ $VERBOSE -eq 1 -o $BACKGROUND -eq 0 ] && [ $RET -eq 0 ]; then
       log_line "No changes detected..."
     fi
 
@@ -568,7 +568,7 @@ backup()
       umount_encfs
     fi
 
-    if [ $VERBOSE -eq 1 ]; then
+    if [ $VERBOSE -eq 1 -a $RET -eq 0 ]; then
       log_line "Finished sync of $SOURCE_DIR"
       log_line "**************************************************************"
     fi
@@ -1238,7 +1238,7 @@ process_commandline_and_load_conf()
 
 # Mainline:
 ###########
-echo "psnapshot-enc v$MY_VERSION - (C) Copyright 2014-2022 by Arno van Amersfoort"
+echo "psnapshot-enc v$MY_VERSION - (C) Copyright 2014-2025 by Arno van Amersfoort"
 echo ""
 
 process_commandline_and_load_conf $*
@@ -1258,6 +1258,7 @@ if [ $REMOVE_LOCK -eq 1 ]; then
   rm -f "$LOCK_FILE"
 fi
 
+RET=0
 if [ -n "$LOG_VIEW" ]; then
   view_log_file "$LOG_VIEW"
 elif [ -n "$LIST_FOLDER" ]; then
@@ -1352,18 +1353,19 @@ else
     fi
 
     # Truncate logfile and print header
-    echo "psnapshot-enc v$MY_VERSION - (C) Copyright 2014-2022 by Arno van Amersfoort" >"${LOG_FILE}"
+    echo "psnapshot-enc v$MY_VERSION - (C) Copyright 2014-2025 by Arno van Amersfoort" >"${LOG_FILE}"
 
     if [ $BACKGROUND -eq 1 ]; then
       backup_bg_process &
     else
       backup
+      RET=$?
     fi
   fi
 fi
 
 lock_leave
 
-exit 0
+exit $RET
 
 # TODO: Logging for cleanup
